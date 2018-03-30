@@ -112,8 +112,27 @@ func compress(cctx *C.ZSTD_CCtx, dst, src []byte, compressionLevel int) []byte {
 	}
 
 	dstLen := len(dst)
-	compressBound := int(C.ZSTD_compressBound(C.size_t(len(src)))) + 1
+	if cap(dst) > dstLen {
+		// Fast path - try compressing without dst resize.
+		dst = dst[:cap(dst)]
+		dstPtr := C.uintptr_t(uintptr(unsafe.Pointer(&dst[dstLen])))
+		srcPtr := C.uintptr_t(uintptr(unsafe.Pointer(&src[0])))
+		result := C.ZSTD_compressCCtx_wrapper(cctx, dstPtr, C.size_t(cap(dst)-dstLen), srcPtr, C.size_t(len(src)), C.int(compressionLevel))
 
+		compressedSize := int(result)
+		if compressedSize >= 0 {
+			// All OK.
+			return dst[:dstLen+compressedSize]
+		}
+
+		if C.ZSTD_getErrorCode(result) != C.ZSTD_error_dstSize_tooSmall {
+			// Unexpected error.
+			panic(fmt.Errorf("BUG: unexpected error during compression: %s", errStr(result)))
+		}
+	}
+
+	// Slow path - resize dst to fit compressed data.
+	compressBound := int(C.ZSTD_compressBound(C.size_t(len(src)))) + 1
 	for cap(dst)-dstLen < compressBound {
 		dst = append(dst, 0)
 	}
@@ -203,6 +222,26 @@ func decompress(dctx *C.ZSTD_DCtx, dst, src []byte) ([]byte, error) {
 	}
 
 	dstLen := len(dst)
+	if cap(dst) > dstLen {
+		// Fast path - try decompressing without dst resize.
+		dst = dst[:cap(dst)]
+		dstPtr := C.uintptr_t(uintptr(unsafe.Pointer(&dst[dstLen])))
+		srcPtr := C.uintptr_t(uintptr(unsafe.Pointer(&src[0])))
+		result := C.ZSTD_decompressDCtx_wrapper(dctx, dstPtr, C.size_t(cap(dst)-dstLen), srcPtr, C.size_t(len(src)))
+
+		decompressedSize := int(result)
+		if decompressedSize >= 0 {
+			// All OK.
+			return dst[:dstLen+decompressedSize], nil
+		}
+
+		if C.ZSTD_getErrorCode(result) != C.ZSTD_error_dstSize_tooSmall {
+			// Error during decompression.
+			return dst[:dstLen], fmt.Errorf("decompression error: %s", errStr(result))
+		}
+	}
+
+	// Slow path - resize dst to fit decompressed data.
 	decompressBound := int(C.ZSTD_getFrameContentSize_wrapper(
 		C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))), C.size_t(len(src))))
 	switch uint(decompressBound) {
