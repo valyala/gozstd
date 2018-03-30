@@ -27,6 +27,7 @@ import "C"
 
 import (
 	"fmt"
+	"io"
 	"runtime"
 	"sync"
 	"unsafe"
@@ -103,7 +104,8 @@ func compressWorker() {
 		cw.dst = compress(cctx, cw.dst, cw.src, cw.compressionLevel)
 		cw.done <- struct{}{}
 	}
-	C.ZSTD_freeCCtx(cctx)
+	result := C.ZSTD_freeCCtx(cctx)
+	ensureNoError(result)
 }
 
 func compress(cctx *C.ZSTD_CCtx, dst, src []byte, compressionLevel int) []byte {
@@ -213,7 +215,8 @@ func decompressWorker() {
 		dw.dst, dw.err = decompress(dctx, dw.dst, dw.src)
 		dw.done <- struct{}{}
 	}
-	C.ZSTD_freeDCtx(dctx)
+	result := C.ZSTD_freeDCtx(dctx)
+	ensureNoError(result)
 }
 
 func decompress(dctx *C.ZSTD_DCtx, dst, src []byte) ([]byte, error) {
@@ -246,7 +249,7 @@ func decompress(dctx *C.ZSTD_DCtx, dst, src []byte) ([]byte, error) {
 		C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))), C.size_t(len(src))))
 	switch uint(decompressBound) {
 	case uint(C.ZSTD_CONTENTSIZE_UNKNOWN):
-		return dst, fmt.Errorf("cannot decompress src, since the decompressed size is unknown")
+		return streamDecompress(dst, src)
 	case uint(C.ZSTD_CONTENTSIZE_ERROR):
 		return dst, fmt.Errorf("cannod decompress invalid src")
 	}
@@ -276,3 +279,71 @@ func errStr(result C.size_t) string {
 	errCStr := C.ZSTD_getErrorString(errCode)
 	return C.GoString(errCStr)
 }
+
+func ensureNoError(result C.size_t) {
+	if C.ZSTD_getErrorCode(result) != 0 {
+		panic(fmt.Errorf("BUG: unexpected error in ZSTD_initCStream: %s", errStr(result)))
+	}
+}
+
+func streamDecompress(dst, src []byte) ([]byte, error) {
+	sd := getStreamDecompressor()
+	sd.dst = dst
+	sd.src = src
+	_, err := io.CopyBuffer(sd, sd, sd.buf)
+	dst = sd.dst
+	putStreamDecompressor(sd)
+	return dst, err
+}
+
+type streamDecompressor struct {
+	dst       []byte
+	src       []byte
+	srcOffset int
+	buf       []byte
+	zr        *Reader
+}
+
+type srcReader streamDecompressor
+
+func (sr *srcReader) Read(p []byte) (int, error) {
+	sd := (*streamDecompressor)(sr)
+	n := copy(p, sd.src[sd.srcOffset:])
+	sd.srcOffset += n
+	if n < len(p) {
+		return n, io.EOF
+	}
+	return n, nil
+}
+
+func (sd *streamDecompressor) Read(p []byte) (int, error) {
+	return sd.zr.Read(p)
+}
+
+func (sd *streamDecompressor) Write(p []byte) (int, error) {
+	sd.dst = append(sd.dst, p...)
+	return len(p), nil
+}
+
+func getStreamDecompressor() *streamDecompressor {
+	v := streamDecompressorPool.Get()
+	if v == nil {
+		sd := &streamDecompressor{
+			buf: make([]byte, 4*1024),
+		}
+		sd.zr = NewReader(nil)
+		v = sd
+	}
+	sd := v.(*streamDecompressor)
+	sd.zr.Reset((*srcReader)(sd))
+	return sd
+}
+
+func putStreamDecompressor(sd *streamDecompressor) {
+	sd.dst = nil
+	sd.src = nil
+	sd.srcOffset = 0
+	streamDecompressorPool.Put(sd)
+}
+
+var streamDecompressorPool sync.Pool

@@ -9,15 +9,19 @@ import (
 var Sink uint64
 
 func BenchmarkCompress(b *testing.B) {
-	for randomness := 1; randomness <= 256; randomness *= 2 {
-		b.Run(fmt.Sprintf("randomness_%d", randomness), func(b *testing.B) {
-			benchmarkCompress(b, randomness)
+	for _, blockSize := range []int{1, 10, 100, 1000, 64 * 1024} {
+		b.Run(fmt.Sprintf("blockSize_%d", blockSize), func(b *testing.B) {
+			for _, randomness := range []int{1, 10, 20, 50, 256} {
+				b.Run(fmt.Sprintf("randomness_%d", randomness), func(b *testing.B) {
+					benchmarkCompress(b, blockSize, randomness)
+				})
+			}
 		})
 	}
 }
 
-func benchmarkCompress(b *testing.B, randomness int) {
-	testStr := newTestString(64*1024, randomness)
+func benchmarkCompress(b *testing.B, blockSize, randomness int) {
+	testStr := newTestString(blockSize, randomness)
 	src := []byte(testStr)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(testStr)))
@@ -34,15 +38,19 @@ func benchmarkCompress(b *testing.B, randomness int) {
 }
 
 func BenchmarkDecompress(b *testing.B) {
-	for randomness := 1; randomness <= 256; randomness *= 2 {
-		b.Run(fmt.Sprintf("randomness_%d", randomness), func(b *testing.B) {
-			benchmarkDecompress(b, randomness)
+	for _, blockSize := range []int{1, 10, 100, 1000, 64 * 1024} {
+		b.Run(fmt.Sprintf("blockSize_%d", blockSize), func(b *testing.B) {
+			for _, randomness := range []int{1, 10, 20, 50, 256} {
+				b.Run(fmt.Sprintf("randomness_%d", randomness), func(b *testing.B) {
+					benchmarkDecompress(b, blockSize, randomness)
+				})
+			}
 		})
 	}
 }
 
-func benchmarkDecompress(b *testing.B, randomness int) {
-	testStr := newTestString(64*1024, randomness)
+func benchmarkDecompress(b *testing.B, blockSize, randomness int) {
+	testStr := newTestString(blockSize, randomness)
 	src := Compress(nil, []byte(testStr))
 	b.ReportAllocs()
 	b.SetBytes(int64(len(testStr)))
