@@ -62,7 +62,7 @@ func getCompressWork() *compressWork {
 	v := compressWorkPool.Get()
 	if v == nil {
 		v = &compressWork{
-			done: make(chan struct{}, 1),
+			done: make(chan struct{}),
 		}
 	}
 	return v.(*compressWork)
@@ -98,7 +98,6 @@ func compressInit() {
 }
 
 func compressWorker() {
-	runtime.LockOSThread()
 	cctx := C.ZSTD_createCCtx()
 	for cw := range compressWorkCh {
 		cw.dst = compress(cctx, cw.dst, cw.src, cw.compressionLevel)
@@ -173,7 +172,7 @@ func getDecompressWork() *decompressWork {
 	v := decompressWorkPool.Get()
 	if v == nil {
 		v = &decompressWork{
-			done: make(chan struct{}, 1),
+			done: make(chan struct{}),
 		}
 	}
 	return v.(*decompressWork)
@@ -209,7 +208,6 @@ func decompressInit() {
 }
 
 func decompressWorker() {
-	runtime.LockOSThread()
 	dctx := C.ZSTD_createDCtx()
 	for dw := range decompressWorkCh {
 		dw.dst, dw.err = decompress(dctx, dw.dst, dw.src)
