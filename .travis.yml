@@ -1,8 +1,8 @@
 language: go
 
 go:
+  - tip
   - 1.10.x
-  - 1.9.x
 
 script:
   # build test for supported platforms
