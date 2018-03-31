@@ -1,4 +1,8 @@
-gozstd - go wrapper for [zstd](http://facebook.github.io/zstd/).
+[![Build Status](https://travis-ci.org/valyala/gozstd.svg)](https://travis-ci.org/valyala/gozstd)
+[![GoDoc](https://godoc.org/github.com/valyala/gozstd?status.svg)](http://godoc.org/github.com/valyala/gozstd)
+[![Go Report](https://goreportcard.com/badge/github.com/valyala/gozstd)](https://goreportcard.com/report/github.com/valyala/gozstd)
+
+# gozstd - go wrapper for [zstd](http://facebook.github.io/zstd/)
 
 Features:
 
