@@ -182,7 +182,7 @@ func (zw *Writer) Flush() error {
 	}
 }
 
-// Close closes zw.
+// Close finalizes the compressed stream.
 //
 // It doesn't close the underlying writer passed to New* functions.
 func (zw *Writer) Close() error {
