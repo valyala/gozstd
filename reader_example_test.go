@@ -1,7 +1,6 @@
-package gozstd_test
+package gozstd
 
 import (
-	gozstd "."
 	"bytes"
 	"fmt"
 	"io"
@@ -10,11 +9,11 @@ import (
 
 func ExampleReader() {
 	// Compress the data.
-	compressedData := gozstd.Compress(nil, []byte("line 0\nline 1\nline 2"))
+	compressedData := Compress(nil, []byte("line 0\nline 1\nline 2"))
 
-	// Read it via gozstd.Reader.
+	// Read it via Reader.
 	r := bytes.NewReader(compressedData)
-	zr := gozstd.NewReader(r)
+	zr := NewReader(r)
 
 	var a []int
 	for i := 0; i < 3; i++ {

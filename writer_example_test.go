@@ -1,7 +1,6 @@
-package gozstd_test
+package gozstd
 
 import (
-	gozstd "."
 	"bytes"
 	"fmt"
 	"io"
@@ -12,7 +11,7 @@ func ExampleWriter() {
 
 	// Compress data to bb.
 	var bb bytes.Buffer
-	zw := gozstd.NewWriter(&bb)
+	zw := NewWriter(&bb)
 	for i := 0; i < 3; i++ {
 		fmt.Fprintf(zw, "line %d\n", i)
 	}
@@ -21,7 +20,7 @@ func ExampleWriter() {
 	}
 
 	// Decompress the data and verify it is valid.
-	plainData, err := gozstd.Decompress(nil, bb.Bytes())
+	plainData, err := Decompress(nil, bb.Bytes())
 	fmt.Printf("err: %v\n%s", err, plainData)
 
 	// Output:
@@ -35,8 +34,8 @@ func ExampleWriter_Flush() {
 
 	// Create in-memory compressed pipe.
 	r, w := io.Pipe()
-	zr := gozstd.NewReader(r)
-	zw := gozstd.NewWriter(w)
+	zr := NewReader(r)
+	zw := NewWriter(w)
 
 	// Start writer goroutine.
 	readerReadyCh := make(chan int)
