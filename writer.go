@@ -33,12 +33,18 @@ type Writer struct {
 }
 
 // NewWriter returns new zstd writer writing compressed data to w.
+//
+// The returned writer must be closed with Close call in order
+// to finalize the compressed stream.
 func NewWriter(w io.Writer) *Writer {
 	return NewWriterLevel(w, DefaultCompressionLevel)
 }
 
 // NewWriterLevel returns new zstd writer writing compressed data to w
 // at the given compression level.
+//
+// The returned writer must be closed with Close call in order
+// to finalize the compressed stream.
 func NewWriterLevel(w io.Writer, compressionLevel int) *Writer {
 	cs := C.ZSTD_createCStream()
 	result := C.ZSTD_initCStream(cs, C.int(compressionLevel))
@@ -177,6 +183,8 @@ func (zw *Writer) Flush() error {
 }
 
 // Close closes zw.
+//
+// It doesn't close the underlying writer passed to New* functions.
 func (zw *Writer) Close() error {
 	if err := zw.Flush(); err != nil {
 		return err
