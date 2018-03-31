@@ -12,11 +12,11 @@ func ExampleWriter() {
 
 	// Compress data to bb.
 	var bb bytes.Buffer
-	w := gozstd.NewWriter(&bb)
+	zw := gozstd.NewWriter(&bb)
 	for i := 0; i < 3; i++ {
-		fmt.Fprintf(w, "line %d\n", i)
+		fmt.Fprintf(zw, "line %d\n", i)
 	}
-	if err := w.Close(); err != nil {
+	if err := zw.Close(); err != nil {
 		log.Fatalf("cannot close writer: %s", err)
 	}
 
