@@ -104,7 +104,7 @@ func (zr *Reader) Read(p []byte) (int, error) {
 		return 0, nil
 	}
 
-	if zr.outBuf.pos == zr.outBuf.size {
+	for zr.outBuf.pos == zr.outBuf.size {
 		if err := zr.readInBuf(); err != nil {
 			return 0, err
 		}
