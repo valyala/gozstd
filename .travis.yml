@@ -1,7 +1,6 @@
 language: go
 
 go:
-  - tip
   - 1.10.x
 
 script:
