@@ -15,7 +15,7 @@ func TestDecompressInvalidData(t *testing.T) {
 	if _, err := Decompress(nil, src); err == nil {
 		t.Fatalf("expecting error when decompressing invalid data")
 	}
-	if _, err := Decompress(buf, src); err == nil {
+	if _, err := Decompress(buf[:0], src); err == nil {
 		t.Fatalf("expecting error when decompressing invalid data into existing buffer")
 	}
 
@@ -27,7 +27,7 @@ func TestDecompressInvalidData(t *testing.T) {
 	if _, err := Decompress(nil, cd); err == nil {
 		t.Fatalf("expecting error when decompressing corrupted data")
 	}
-	if _, err := Decompress(buf, cd); err == nil {
+	if _, err := Decompress(buf[:0], cd); err == nil {
 		t.Fatalf("expecting error when decompressing corrupdate data into existing buffer")
 	}
 }
