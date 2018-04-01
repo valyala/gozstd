@@ -1,28 +1,30 @@
 package gozstd
 
-// #cgo CFLAGS: -O3 -I${SRCDIR}/zstd/lib
-// #cgo LDFLAGS: ${SRCDIR}/zstd/lib/libzstd.a
-//
-// #include "zstd.h"
-// #include "common/zstd_errors.h"
-//
-// #include <stdint.h>  // for uintptr_t
-//
-// // The following *_wrapper functions allow avoiding memory allocations
-// // durting calls from Go.
-// // See https://github.com/golang/go/issues/24450 .
-//
-// static size_t ZSTD_compressCCtx_wrapper(ZSTD_CCtx* ctx, uintptr_t dst, size_t dstCapacity, uintptr_t src, size_t srcSize, int compressionLevel) {
-//     return ZSTD_compressCCtx(ctx, (void*)dst, dstCapacity, (const void*)src, srcSize, compressionLevel);
-// }
-//
-// static size_t ZSTD_decompressDCtx_wrapper(ZSTD_DCtx* ctx, uintptr_t dst, size_t dstCapacity, uintptr_t src, size_t srcSize) {
-//     return ZSTD_decompressDCtx(ctx, (void*)dst, dstCapacity, (const void*)src, srcSize);
-// }
-//
-// static unsigned long long ZSTD_getFrameContentSize_wrapper(uintptr_t src, size_t srcSize) {
-//     return ZSTD_getFrameContentSize((const void*)src, srcSize);
-// }
+/*
+#cgo CFLAGS: -O3 -I${SRCDIR}/zstd/lib
+#cgo LDFLAGS: ${SRCDIR}/zstd/lib/libzstd.a
+
+#include "zstd.h"
+#include "common/zstd_errors.h"
+
+#include <stdint.h>  // for uintptr_t
+
+// The following *_wrapper functions allow avoiding memory allocations
+// durting calls from Go.
+// See https://github.com/golang/go/issues/24450 .
+
+static size_t ZSTD_compressCCtx_wrapper(ZSTD_CCtx* ctx, uintptr_t dst, size_t dstCapacity, uintptr_t src, size_t srcSize, int compressionLevel) {
+    return ZSTD_compressCCtx(ctx, (void*)dst, dstCapacity, (const void*)src, srcSize, compressionLevel);
+}
+
+static size_t ZSTD_decompressDCtx_wrapper(ZSTD_DCtx* ctx, uintptr_t dst, size_t dstCapacity, uintptr_t src, size_t srcSize) {
+    return ZSTD_decompressDCtx(ctx, (void*)dst, dstCapacity, (const void*)src, srcSize);
+}
+
+static unsigned long long ZSTD_getFrameContentSize_wrapper(uintptr_t src, size_t srcSize) {
+    return ZSTD_getFrameContentSize((const void*)src, srcSize);
+}
+*/
 import "C"
 
 import (

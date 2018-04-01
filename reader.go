@@ -1,9 +1,11 @@
 package gozstd
 
-// #include "zstd.h"
-// #include "common/zstd_errors.h"
-//
-// #include <stdlib.h>  // for malloc/free
+/*
+#include "zstd.h"
+#include "common/zstd_errors.h"
+
+#include <stdlib.h>  // for malloc/free
+*/
 import "C"
 
 import (
