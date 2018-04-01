@@ -177,7 +177,7 @@ func (zw *Writer) Flush() error {
 			return nil
 		}
 		if C.ZSTD_getErrorCode(result) != 0 {
-			return fmt.Errorf("cannot flush internal buffer to outBuf: %s", errStr(result))
+			panic(fmt.Errorf("BUG: cannot flush internal buffer to outBuf: %s", errStr(result)))
 		}
 	}
 }
@@ -199,7 +199,7 @@ func (zw *Writer) Close() error {
 			return nil
 		}
 		if C.ZSTD_getErrorCode(result) != 0 {
-			return fmt.Errorf("cannot close writer stream: %s", errStr(result))
+			panic(fmt.Errorf("BUG: cannot close writer stream: %s", errStr(result)))
 		}
 	}
 }
