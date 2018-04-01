@@ -30,7 +30,7 @@ func (*badWriter) Write(p []byte) (int, error) {
 	if len(p) == 0 {
 		return 0, nil
 	}
-	if rand.Intn(2) == 0 {
+	if rand.Intn(10) == 0 {
 		return 0, fmt.Errorf("badWriter failed")
 	}
 	return len(p), nil

@@ -6,9 +6,43 @@ import (
 	"io"
 	"io/ioutil"
 	"math/rand"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestReaderBadUnderlyingReader(t *testing.T) {
+	r := &badReader{
+		b: Compress(nil, []byte(newTestString(64*1024, 30))),
+	}
+	zr := NewReader(r)
+
+	buf := make([]byte, 123)
+	for {
+		if _, err := zr.Read(buf); err != nil {
+			if !strings.Contains(err.Error(), "badReader failed") {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			break
+		}
+	}
+}
+
+type badReader struct {
+	b []byte
+}
+
+func (br *badReader) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	if rand.Intn(5) == 0 || len(br.b) < 2 {
+		return 0, fmt.Errorf("badReader failed")
+	}
+	n := copy(p[:1], br.b)
+	br.b = br.b[n:]
+	return n, nil
+}
 
 func TestReaderInvalidData(t *testing.T) {
 	// Try decompressing invalid data.
