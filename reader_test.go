@@ -4,10 +4,35 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"testing"
 	"time"
 )
+
+func TestReaderInvalidData(t *testing.T) {
+	// Try decompressing invalid data.
+	src := []byte("invalid compressed data")
+
+	r := bytes.NewReader(src)
+	zr := NewReader(r)
+
+	if _, err := ioutil.ReadAll(zr); err == nil {
+		t.Fatalf("expecting error when decompressing invalid data")
+	}
+
+	// Try decompressing corrupted data.
+	s := newTestString(64*1024, 15)
+	cd := Compress(nil, []byte(s))
+	cd[len(cd)-1]++
+
+	r = bytes.NewReader(cd)
+	zr.Reset(r)
+
+	if _, err := ioutil.ReadAll(zr); err == nil {
+		t.Fatalf("expecting error when decompressing corrupted data")
+	}
+}
 
 func TestReader(t *testing.T) {
 	testReader(t, "")
@@ -65,6 +90,17 @@ func testReaderSerial(s string, cd []byte) error {
 
 func testReaderExt(zr *Reader, s string) error {
 	buf := make([]byte, len(s))
+
+	// Verify reading zero bytes
+	n, err := zr.Read(buf[:0])
+	if err != nil {
+		return fmt.Errorf("cannot read zero bytes: %s", err)
+	}
+	if n != 0 {
+		return fmt.Errorf("unexpected number of bytes read; got %d; want %d", n, 0)
+	}
+
+	// Verify reading random number of bytes.
 	for len(s) > 0 {
 		nWant := rand.Intn(len(s))/7 + 1
 		n, err := io.ReadFull(zr, buf[:nWant])

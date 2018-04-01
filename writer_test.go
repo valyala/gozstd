@@ -83,6 +83,17 @@ func testWriterSerial(s string) error {
 
 func testWriterExt(zw *Writer, s string) error {
 	bs := []byte(s)
+
+	// Verify writing zero bytes.
+	n, err := zw.Write(bs[:0])
+	if err != nil {
+		return fmt.Errorf("cannot write zero-byte value: %s", err)
+	}
+	if n != 0 {
+		return fmt.Errorf("unexpected number of bytes written; got %d; want %d", n, 0)
+	}
+
+	// Verify writing random number of bytes.
 	i := 0
 	for i < len(bs) {
 		nWant := rand.Intn(len(bs)-i)/7 + 1

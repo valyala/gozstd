@@ -9,6 +9,7 @@ import (
 )
 
 func TestDecompressInvalidData(t *testing.T) {
+	// Try decompressing invalid data.
 	src := []byte("invalid compressed data")
 	buf := make([]byte, len(src))
 	if _, err := Decompress(nil, src); err == nil {
