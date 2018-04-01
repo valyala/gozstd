@@ -112,7 +112,8 @@ func freeCStream(v interface{}) {
 //
 // Write doesn't flush the compressed data to the underlying writer
 // due to performance reasons.
-// Call Flush when the compressed data must propagate to the underlying writer.
+// Call Flush or Close when the compressed data must propagate
+// to the underlying writer.
 func (zw *Writer) Write(p []byte) (int, error) {
 	pLen := len(p)
 	if pLen == 0 {
@@ -186,7 +187,8 @@ func (zw *Writer) Flush() error {
 	}
 }
 
-// Close finalizes the compressed stream.
+// Close finalizes the compressed stream and flushes all the compressed data
+// to the underlying writer.
 //
 // It doesn't close the underlying writer passed to New* functions.
 func (zw *Writer) Close() error {
