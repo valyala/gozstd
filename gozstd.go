@@ -140,15 +140,10 @@ func compress(cctx *C.ZSTD_CCtx, dst, src []byte, compressionLevel int) []byte {
 	dstPtr := C.uintptr_t(uintptr(unsafe.Pointer(&dst[dstLen])))
 	srcPtr := C.uintptr_t(uintptr(unsafe.Pointer(&src[0])))
 	result := C.ZSTD_compressCCtx_wrapper(cctx, dstPtr, C.size_t(cap(dst)-dstLen), srcPtr, C.size_t(len(src)), C.int(compressionLevel))
+	ensureNoError("ZSTD_compressCCtx_wrapper", result)
 
 	compressedSize := int(result)
-	if compressedSize >= 0 {
-		// All OK.
-		return dst[:dstLen+compressedSize]
-	}
-
-	// Unexpected error.
-	panic(fmt.Errorf("BUG: unexpected error during compression: %s", errStr(result)))
+	return dst[:dstLen+compressedSize]
 }
 
 // Decompress appends decompressed src to dst and returns the result.
