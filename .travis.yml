@@ -5,7 +5,8 @@ go:
 
 script:
   # build test for supported platforms
-  - GOOS=linux go build
+  - GOOS=linux GOARCH=amd64 go build
 
   # run tests on a standard platform
-  - go test -v ./...
+  - go test -v
+  - go test -v -race
