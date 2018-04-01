@@ -274,9 +274,9 @@ func errStr(result C.size_t) string {
 	return C.GoString(errCStr)
 }
 
-func ensureNoError(result C.size_t) {
+func ensureNoError(funcName string, result C.size_t) {
 	if C.ZSTD_getErrorCode(result) != 0 {
-		panic(fmt.Errorf("BUG: unexpected error in ZSTD_initCStream: %s", errStr(result)))
+		panic(fmt.Errorf("BUG: unexpected error in %s: %s", funcName, errStr(result)))
 	}
 }
 

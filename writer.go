@@ -48,7 +48,7 @@ func NewWriter(w io.Writer) *Writer {
 func NewWriterLevel(w io.Writer, compressionLevel int) *Writer {
 	cs := C.ZSTD_createCStream()
 	result := C.ZSTD_initCStream(cs, C.int(compressionLevel))
-	ensureNoError(result)
+	ensureNoError("ZSTD_initCStream", result)
 
 	inBuf := (*C.ZSTD_inBuffer)(C.malloc(C.sizeof_ZSTD_inBuffer))
 	inBuf.src = C.malloc(cstreamInBufSize)
@@ -91,7 +91,7 @@ func (zw *Writer) Reset(w io.Writer) {
 	zw.outBuf.pos = 0
 
 	result := C.ZSTD_initCStream(zw.cs, C.int(zw.compressionLevel))
-	ensureNoError(result)
+	ensureNoError("ZSTD_initCStream", result)
 
 	zw.w = w
 }
@@ -99,7 +99,7 @@ func (zw *Writer) Reset(w io.Writer) {
 func freeCStream(v interface{}) {
 	zw := v.(*Writer)
 	result := C.ZSTD_freeCStream(zw.cs)
-	ensureNoError(result)
+	ensureNoError("ZSTD_freeCStream", result)
 
 	C.free(zw.inBuf.src)
 	C.free(unsafe.Pointer(zw.inBuf))
@@ -131,15 +131,12 @@ func (zw *Writer) Write(p []byte) (int, error) {
 
 func (zw *Writer) flushInBuf() error {
 	result := C.ZSTD_compressStream(zw.cs, zw.outBuf, zw.inBuf)
+	ensureNoError("ZSTD_compressStream", result)
 
 	// Adjust inBuf.
 	copy(zw.inBufGo, zw.inBufGo[zw.inBuf.pos:zw.inBuf.size])
 	zw.inBuf.size -= zw.inBuf.pos
 	zw.inBuf.pos = 0
-
-	if C.ZSTD_getErrorCode(result) != 0 {
-		panic(fmt.Errorf("BUG: cannot compress data: %s", errStr(result)))
-	}
 
 	// Flush outBuf.
 	return zw.flushOutBuf()
@@ -174,15 +171,13 @@ func (zw *Writer) Flush() error {
 	// Flush the internal buffer to outBuf.
 	for {
 		result := C.ZSTD_flushStream(zw.cs, zw.outBuf)
+		ensureNoError("ZSTD_flushStream", result)
 		if err := zw.flushOutBuf(); err != nil {
 			return err
 		}
 		if result == 0 {
 			// No more data left in the internal buffer.
 			return nil
-		}
-		if C.ZSTD_getErrorCode(result) != 0 {
-			panic(fmt.Errorf("BUG: cannot flush internal buffer to outBuf: %s", errStr(result)))
 		}
 	}
 }
@@ -197,14 +192,12 @@ func (zw *Writer) Close() error {
 
 	for {
 		result := C.ZSTD_endStream(zw.cs, zw.outBuf)
+		ensureNoError("ZSTD_endStream", result)
 		if err := zw.flushOutBuf(); err != nil {
 			return err
 		}
 		if result == 0 {
 			return nil
-		}
-		if C.ZSTD_getErrorCode(result) != 0 {
-			panic(fmt.Errorf("BUG: cannot close writer stream: %s", errStr(result)))
 		}
 	}
 }

@@ -37,7 +37,7 @@ type Reader struct {
 func NewReader(r io.Reader) *Reader {
 	ds := C.ZSTD_createDStream()
 	result := C.ZSTD_initDStream(ds)
-	ensureNoError(result)
+	ensureNoError("ZSTD_initDStream", result)
 
 	inBuf := (*C.ZSTD_inBuffer)(C.malloc(C.sizeof_ZSTD_inBuffer))
 	inBuf.src = C.malloc(dstreamInBufSize)
@@ -79,7 +79,7 @@ func (zr *Reader) Reset(r io.Reader) {
 	zr.outBuf.pos = 0
 
 	result := C.ZSTD_initDStream(zr.ds)
-	ensureNoError(result)
+	ensureNoError("ZSTD_initDStream", result)
 
 	zr.r = r
 
@@ -89,7 +89,7 @@ func (zr *Reader) Reset(r io.Reader) {
 func freeDStream(v interface{}) {
 	zr := v.(*Reader)
 	result := C.ZSTD_freeDStream(zr.ds)
-	ensureNoError(result)
+	ensureNoError("ZSTD_freeDStream", result)
 
 	C.free(zr.inBuf.src)
 	C.free(unsafe.Pointer(zr.inBuf))
