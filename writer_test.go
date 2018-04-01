@@ -5,9 +5,36 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestWriterBadUnderlyingWriter(t *testing.T) {
+	zw := NewWriter(&badWriter{})
+	defer zw.Close()
+	data := []byte(newTestString(123, 20))
+	for {
+		if _, err := zw.Write(data); err != nil {
+			if !strings.Contains(err.Error(), "badWriter failed") {
+				t.Fatalf("unexpected error: %s", err)
+			}
+			break
+		}
+	}
+}
+
+type badWriter struct{}
+
+func (*badWriter) Write(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	if rand.Intn(2) == 0 {
+		return 0, fmt.Errorf("badWriter failed")
+	}
+	return len(p), nil
+}
 
 func TestWriter(t *testing.T) {
 	testWriter(t, "")

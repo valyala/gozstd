@@ -149,10 +149,15 @@ func (zw *Writer) flushOutBuf() error {
 	if zw.outBuf.pos == 0 {
 		return nil
 	}
-	_, err := zw.w.Write(zw.outBufGo[:zw.outBuf.pos])
+	outBuf := zw.outBufGo[:zw.outBuf.pos]
+	n, err := zw.w.Write(outBuf)
 	zw.outBuf.pos = 0
 	if err != nil {
 		return fmt.Errorf("cannot flush internal buffer to the underlying writer: %s", err)
+	}
+	if n != len(outBuf) {
+		panic(fmt.Errorf("BUG: the underlying writer violated io.Writer contract and didn't return error after writing incomplete data; written %d bytes; want %d bytes",
+			n, len(outBuf)))
 	}
 	return nil
 }
