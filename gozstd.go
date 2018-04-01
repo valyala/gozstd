@@ -4,6 +4,8 @@ package gozstd
 #cgo CFLAGS: -O3 -I${SRCDIR}/zstd/lib
 #cgo LDFLAGS: ${SRCDIR}/zstd/lib/libzstd.a
 
+#define ZSTD_STATIC_LINKING_ONLY
+
 #include "zstd.h"
 #include "common/zstd_errors.h"
 
@@ -45,7 +47,7 @@ func Compress(dst, src []byte) []byte {
 
 // CompressLevel appends compressed src to dst and returns the result.
 //
-// The given compression level is used for the compression.
+// The given compressionLevel is used for the compression.
 func CompressLevel(dst, src []byte, compressionLevel int) []byte {
 	compressInitOnce.Do(compressInit)
 
@@ -116,10 +118,8 @@ func compress(cctx *C.ZSTD_CCtx, dst, src []byte, compressionLevel int) []byte {
 	if cap(dst) > dstLen {
 		// Fast path - try compressing without dst resize.
 		dst = dst[:cap(dst)]
-		dstPtr := C.uintptr_t(uintptr(unsafe.Pointer(&dst[dstLen])))
-		srcPtr := C.uintptr_t(uintptr(unsafe.Pointer(&src[0])))
-		result := C.ZSTD_compressCCtx_wrapper(cctx, dstPtr, C.size_t(cap(dst)-dstLen), srcPtr, C.size_t(len(src)), C.int(compressionLevel))
 
+		result := compressInternal(cctx, dst[dstLen:], src, compressionLevel, false)
 		compressedSize := int(result)
 		if compressedSize >= 0 {
 			// All OK.
@@ -139,13 +139,22 @@ func compress(cctx *C.ZSTD_CCtx, dst, src []byte, compressionLevel int) []byte {
 	}
 	dst = dst[:cap(dst)]
 
-	dstPtr := C.uintptr_t(uintptr(unsafe.Pointer(&dst[dstLen])))
-	srcPtr := C.uintptr_t(uintptr(unsafe.Pointer(&src[0])))
-	result := C.ZSTD_compressCCtx_wrapper(cctx, dstPtr, C.size_t(cap(dst)-dstLen), srcPtr, C.size_t(len(src)), C.int(compressionLevel))
-	ensureNoError("ZSTD_compressCCtx_wrapper", result)
-
+	result := compressInternal(cctx, dst[dstLen:], src, compressionLevel, true)
 	compressedSize := int(result)
 	return dst[:dstLen+compressedSize]
+}
+
+func compressInternal(cctx *C.ZSTD_CCtx, dst, src []byte, compressionLevel int, mustSucceed bool) C.size_t {
+	result := C.ZSTD_compressCCtx_wrapper(cctx,
+		C.uintptr_t(uintptr(unsafe.Pointer(&dst[0]))),
+		C.size_t(cap(dst)),
+		C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))),
+		C.size_t(len(src)),
+		C.int(compressionLevel))
+	if mustSucceed {
+		ensureNoError("ZSTD_compressCCtx_wrapper", result)
+	}
+	return result
 }
 
 // Decompress appends decompressed src to dst and returns the result.
@@ -219,10 +228,8 @@ func decompress(dctx *C.ZSTD_DCtx, dst, src []byte) ([]byte, error) {
 	if cap(dst) > dstLen {
 		// Fast path - try decompressing without dst resize.
 		dst = dst[:cap(dst)]
-		dstPtr := C.uintptr_t(uintptr(unsafe.Pointer(&dst[dstLen])))
-		srcPtr := C.uintptr_t(uintptr(unsafe.Pointer(&src[0])))
-		result := C.ZSTD_decompressDCtx_wrapper(dctx, dstPtr, C.size_t(cap(dst)-dstLen), srcPtr, C.size_t(len(src)))
 
+		result := decompressInternal(dctx, dst[dstLen:], src)
 		decompressedSize := int(result)
 		if decompressedSize >= 0 {
 			// All OK.
@@ -251,10 +258,7 @@ func decompress(dctx *C.ZSTD_DCtx, dst, src []byte) ([]byte, error) {
 	}
 	dst = dst[:cap(dst)]
 
-	dstPtr := C.uintptr_t(uintptr(unsafe.Pointer(&dst[dstLen])))
-	srcPtr := C.uintptr_t(uintptr(unsafe.Pointer(&src[0])))
-	result := C.ZSTD_decompressDCtx_wrapper(dctx, dstPtr, C.size_t(cap(dst)-dstLen), srcPtr, C.size_t(len(src)))
-
+	result := decompressInternal(dctx, dst[dstLen:], src)
 	decompressedSize := int(result)
 	if decompressedSize >= 0 {
 		// All OK.
@@ -263,6 +267,15 @@ func decompress(dctx *C.ZSTD_DCtx, dst, src []byte) ([]byte, error) {
 
 	// Error during decompression.
 	return dst[:dstLen], fmt.Errorf("decompression error: %s", errStr(result))
+}
+
+func decompressInternal(dctx *C.ZSTD_DCtx, dst, src []byte) C.size_t {
+	result := C.ZSTD_decompressDCtx_wrapper(dctx,
+		C.uintptr_t(uintptr(unsafe.Pointer(&dst[0]))),
+		C.size_t(cap(dst)),
+		C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))),
+		C.size_t(len(src)))
+	return result
 }
 
 func errStr(result C.size_t) string {
