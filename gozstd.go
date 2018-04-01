@@ -103,8 +103,6 @@ func compressWorker() {
 		cw.dst = compress(cctx, cw.dst, cw.src, cw.compressionLevel)
 		cw.done <- struct{}{}
 	}
-	result := C.ZSTD_freeCCtx(cctx)
-	ensureNoError(result)
 }
 
 func compress(cctx *C.ZSTD_CCtx, dst, src []byte, compressionLevel int) []byte {
@@ -213,8 +211,6 @@ func decompressWorker() {
 		dw.dst, dw.err = decompress(dctx, dw.dst, dw.src)
 		dw.done <- struct{}{}
 	}
-	result := C.ZSTD_freeDCtx(dctx)
-	ensureNoError(result)
 }
 
 func decompress(dctx *C.ZSTD_DCtx, dst, src []byte) ([]byte, error) {
