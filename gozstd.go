@@ -275,6 +275,10 @@ func errStr(result C.size_t) string {
 }
 
 func ensureNoError(funcName string, result C.size_t) {
+	if int(result) >= 0 {
+		// Fast path - avoid calling C function.
+		return
+	}
 	if C.ZSTD_getErrorCode(result) != 0 {
 		panic(fmt.Errorf("BUG: unexpected error in %s: %s", funcName, errStr(result)))
 	}
