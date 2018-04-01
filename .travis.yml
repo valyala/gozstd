@@ -8,5 +8,9 @@ script:
   - GOOS=linux GOARCH=amd64 go build
 
   # run tests on a standard platform
-  - go test -v
+  - go test -v -coverprofile=coverage.txt -covermode=atomic
   - go test -v -race
+
+after_success:
+  # Upload coverage results to codecov.io
+  - bash <(curl -s https://codecov.io/bash)
