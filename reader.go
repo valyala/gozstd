@@ -1,6 +1,8 @@
 package gozstd
 
 /*
+#define ZSTD_STATIC_LINKING_ONLY
+
 #include "zstd.h"
 #include "common/zstd_errors.h"
 
@@ -82,11 +84,10 @@ func (zr *Reader) Reset(r io.Reader) {
 	zr.outBuf.size = 0
 	zr.outBuf.pos = 0
 
-	result := C.ZSTD_initDStream(zr.ds)
-	ensureNoError("ZSTD_initDStream", result)
+	result := C.ZSTD_resetDStream(zr.ds)
+	ensureNoError("ZSTD_resetDStream", result)
 
 	zr.r = r
-
 	zr.eof = false
 }
 

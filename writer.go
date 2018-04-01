@@ -1,6 +1,8 @@
 package gozstd
 
 /*
+#define ZSTD_STATIC_LINKING_ONLY
+
 #include "zstd.h"
 
 #include <stdlib.h>  // for malloc/free
@@ -52,7 +54,8 @@ func NewWriter(w io.Writer) *Writer {
 // Call Release when the Writer is no longer needed.
 func NewWriterLevel(w io.Writer, compressionLevel int) *Writer {
 	cs := C.ZSTD_createCStream()
-	initCStream(cs, compressionLevel)
+	result := C.ZSTD_initCStream(cs, C.int(compressionLevel))
+	ensureNoError("ZSTD_initCStream", result)
 
 	inBuf := (*C.ZSTD_inBuffer)(C.malloc(C.sizeof_ZSTD_inBuffer))
 	inBuf.src = C.malloc(cstreamInBufSize)
@@ -96,14 +99,10 @@ func (zw *Writer) Reset(w io.Writer) {
 	zw.outBuf.size = cstreamOutBufSize
 	zw.outBuf.pos = 0
 
-	initCStream(zw.cs, zw.compressionLevel)
+	result := C.ZSTD_resetCStream(zw.cs, C.ZSTD_CONTENTSIZE_UNKNOWN)
+	ensureNoError("ZSTD_resetCStream", result)
 
 	zw.w = w
-}
-
-func initCStream(cs *C.ZSTD_CStream, compressionLevel int) {
-	result := C.ZSTD_initCStream(cs, C.int(compressionLevel))
-	ensureNoError("ZSTD_initCStream", result)
 }
 
 func freeCStream(v interface{}) {
