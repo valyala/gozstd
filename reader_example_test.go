@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 )
 
@@ -34,4 +35,26 @@ func ExampleReader() {
 
 	// Output:
 	// [0 1 2]
+}
+
+func ExampleReader_Reset() {
+	zr := NewReader(nil)
+
+	// Read from different sources using the same Reader.
+	for i := 0; i < 3; i++ {
+		compressedData := Compress(nil, []byte(fmt.Sprintf("line %d", i)))
+		r := bytes.NewReader(compressedData)
+		zr.Reset(r)
+
+		data, err := ioutil.ReadAll(zr)
+		if err != nil {
+			log.Fatalf("unexpected error when reading compressed data: %s", err)
+		}
+		fmt.Printf("%s\n", data)
+	}
+
+	// Output:
+	// line 0
+	// line 1
+	// line 2
 }

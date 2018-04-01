@@ -94,3 +94,31 @@ func ExampleWriter_Flush() {
 	// Output:
 	// [0 1 2 3 4]
 }
+
+func ExampleWriter_Reset() {
+	zw := NewWriter(nil)
+
+	// Write to different destinations using the same Writer.
+	for i := 0; i < 3; i++ {
+		var bb bytes.Buffer
+		zw.Reset(&bb)
+		if _, err := zw.Write([]byte(fmt.Sprintf("line %d", i))); err != nil {
+			log.Fatalf("unexpected error when writing data: %s", err)
+		}
+		if err := zw.Close(); err != nil {
+			log.Fatalf("unexpected error when closing zw: %s", err)
+		}
+
+		// Decompress the compressed data.
+		plainData, err := Decompress(nil, bb.Bytes())
+		if err != nil {
+			log.Fatalf("unexpected error when decompressing data: %s", err)
+		}
+		fmt.Printf("%s\n", plainData)
+	}
+
+	// Output:
+	// line 0
+	// line 1
+	// line 2
+}
