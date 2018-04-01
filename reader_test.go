@@ -16,6 +16,7 @@ func TestReaderBadUnderlyingReader(t *testing.T) {
 		b: Compress(nil, []byte(newTestString(64*1024, 30))),
 	}
 	zr := NewReader(r)
+	defer zr.Release()
 
 	buf := make([]byte, 123)
 	for {
@@ -50,6 +51,7 @@ func TestReaderInvalidData(t *testing.T) {
 
 	r := bytes.NewReader(src)
 	zr := NewReader(r)
+	defer zr.Release()
 
 	if _, err := ioutil.ReadAll(zr); err == nil {
 		t.Fatalf("expecting error when decompressing invalid data")
@@ -112,6 +114,7 @@ func testReader(t *testing.T, s string) {
 
 func testReaderSerial(s string, cd []byte) error {
 	zr := NewReader(nil)
+	defer zr.Release()
 	for i := 0; i < 2; i++ {
 		r := bytes.NewReader(cd)
 		zr.Reset(r)

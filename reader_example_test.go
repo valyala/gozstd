@@ -15,6 +15,7 @@ func ExampleReader() {
 	// Read it via Reader.
 	r := bytes.NewReader(compressedData)
 	zr := NewReader(r)
+	defer zr.Release()
 
 	var a []int
 	for i := 0; i < 3; i++ {
@@ -39,6 +40,7 @@ func ExampleReader() {
 
 func ExampleReader_Reset() {
 	zr := NewReader(nil)
+	defer zr.Release()
 
 	// Read from different sources using the same Reader.
 	for i := 0; i < 3; i++ {

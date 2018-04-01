@@ -24,6 +24,7 @@ func benchmarkWriter(b *testing.B, blockSize, randomness int) {
 	b.SetBytes(int64(len(block)))
 	b.RunParallel(func(pb *testing.PB) {
 		zw := NewWriter(ioutil.Discard)
+		defer zw.Release()
 		for pb.Next() {
 			for i := 0; i < 100; i++ {
 				_, err := zw.Write(block[i*blockSize : (i+1)*blockSize])

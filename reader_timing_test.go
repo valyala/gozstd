@@ -28,6 +28,7 @@ func benchmarkReader(b *testing.B, blockSize, randomness int) {
 	b.RunParallel(func(pb *testing.PB) {
 		r := bytes.NewReader(cd)
 		zr := NewReader(r)
+		defer zr.Release()
 		buf := make([]byte, blockSize)
 		for pb.Next() {
 			for {

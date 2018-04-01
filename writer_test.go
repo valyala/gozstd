@@ -12,7 +12,7 @@ import (
 
 func TestWriterBadUnderlyingWriter(t *testing.T) {
 	zw := NewWriter(&badWriter{})
-	defer zw.Close()
+	defer zw.Release()
 	data := []byte(newTestString(123, 20))
 	for {
 		if _, err := zw.Write(data); err != nil {
@@ -78,6 +78,7 @@ func testWriter(t *testing.T, s string) {
 
 func testWriterSerial(s string) error {
 	zw := NewWriter(nil)
+	defer zw.Release()
 	for i := 0; i < 2; i++ {
 		var bb bytes.Buffer
 		zw.Reset(&bb)

@@ -37,6 +37,8 @@ type Writer struct {
 //
 // The returned writer must be closed with Close call in order
 // to finalize the compressed stream.
+//
+// Call Release when the Writer is no longer needed.
 func NewWriter(w io.Writer) *Writer {
 	return NewWriterLevel(w, DefaultCompressionLevel)
 }
@@ -46,10 +48,11 @@ func NewWriter(w io.Writer) *Writer {
 //
 // The returned writer must be closed with Close call in order
 // to finalize the compressed stream.
+//
+// Call Release when the Writer is no longer needed.
 func NewWriterLevel(w io.Writer, compressionLevel int) *Writer {
 	cs := C.ZSTD_createCStream()
-	result := C.ZSTD_initCStream(cs, C.int(compressionLevel))
-	ensureNoError("ZSTD_initCStream", result)
+	initCStream(cs, compressionLevel)
 
 	inBuf := (*C.ZSTD_inBuffer)(C.malloc(C.sizeof_ZSTD_inBuffer))
 	inBuf.src = C.malloc(cstreamInBufSize)
@@ -85,28 +88,49 @@ func NewWriterLevel(w io.Writer, compressionLevel int) *Writer {
 }
 
 // Reset resets zw to write to w.
+//
+// Reset doesn't change compression level for zw.
 func (zw *Writer) Reset(w io.Writer) {
 	zw.inBuf.size = 0
 	zw.inBuf.pos = 0
 	zw.outBuf.size = cstreamOutBufSize
 	zw.outBuf.pos = 0
 
-	result := C.ZSTD_initCStream(zw.cs, C.int(zw.compressionLevel))
-	ensureNoError("ZSTD_initCStream", result)
+	initCStream(zw.cs, zw.compressionLevel)
 
 	zw.w = w
 }
 
+func initCStream(cs *C.ZSTD_CStream, compressionLevel int) {
+	result := C.ZSTD_initCStream(cs, C.int(compressionLevel))
+	ensureNoError("ZSTD_initCStream", result)
+}
+
 func freeCStream(v interface{}) {
-	zw := v.(*Writer)
+	v.(*Writer).Release()
+}
+
+// Release releases all the resources occupied by zw.
+//
+// zw cannot be used after the release.
+func (zw *Writer) Release() {
+	if zw.cs == nil {
+		return
+	}
+
 	result := C.ZSTD_freeCStream(zw.cs)
 	ensureNoError("ZSTD_freeCStream", result)
+	zw.cs = nil
 
 	C.free(zw.inBuf.src)
 	C.free(unsafe.Pointer(zw.inBuf))
+	zw.inBuf = nil
 
 	C.free(zw.outBuf.dst)
 	C.free(unsafe.Pointer(zw.outBuf))
+	zw.outBuf = nil
+
+	zw.w = nil
 }
 
 // Write writes p to zw.

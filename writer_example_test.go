@@ -12,6 +12,8 @@ func ExampleWriter() {
 	// Compress data to bb.
 	var bb bytes.Buffer
 	zw := NewWriter(&bb)
+	defer zw.Release()
+
 	for i := 0; i < 3; i++ {
 		fmt.Fprintf(zw, "line %d\n", i)
 	}
@@ -35,7 +37,9 @@ func ExampleWriter_Flush() {
 	// Create in-memory compressed pipe.
 	r, w := io.Pipe()
 	zr := NewReader(r)
+	defer zr.Release()
 	zw := NewWriter(w)
+	defer zw.Release()
 
 	// Start writer goroutine.
 	readerReadyCh := make(chan int)
@@ -97,6 +101,7 @@ func ExampleWriter_Flush() {
 
 func ExampleWriter_Reset() {
 	zw := NewWriter(nil)
+	defer zw.Release()
 
 	// Write to different destinations using the same Writer.
 	for i := 0; i < 3; i++ {

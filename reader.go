@@ -36,6 +36,8 @@ type Reader struct {
 }
 
 // NewReader returns new zstd reader reading compressed data from r.
+//
+// Call Release when the Reader is no longer needed.
 func NewReader(r io.Reader) *Reader {
 	ds := C.ZSTD_createDStream()
 	result := C.ZSTD_initDStream(ds)
@@ -89,15 +91,30 @@ func (zr *Reader) Reset(r io.Reader) {
 }
 
 func freeDStream(v interface{}) {
-	zr := v.(*Reader)
+	v.(*Reader).Release()
+}
+
+// Release releases all the resources occupied by zr.
+//
+// zr cannot be used after the release.
+func (zr *Reader) Release() {
+	if zr.ds == nil {
+		return
+	}
+
 	result := C.ZSTD_freeDStream(zr.ds)
 	ensureNoError("ZSTD_freeDStream", result)
+	zr.ds = nil
 
 	C.free(zr.inBuf.src)
 	C.free(unsafe.Pointer(zr.inBuf))
+	zr.inBuf = nil
 
 	C.free(zr.outBuf.dst)
 	C.free(unsafe.Pointer(zr.outBuf))
+	zr.outBuf = nil
+
+	zr.r = nil
 }
 
 // Read reads up to len(p) bytes from zr to p.
