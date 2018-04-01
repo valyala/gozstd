@@ -109,6 +109,10 @@ func freeCStream(v interface{}) {
 }
 
 // Write writes p to zw.
+//
+// Write doesn't flush the compressed data to the underlying writer
+// due to performance reasons.
+// Call Flush when the compressed data must propagate to the underlying writer.
 func (zw *Writer) Write(p []byte) (int, error) {
 	pLen := len(p)
 	if pLen == 0 {
