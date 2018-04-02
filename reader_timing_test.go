@@ -41,7 +41,7 @@ func benchmarkReader(b *testing.B, blockSize, randomness int) {
 				}
 			}
 			r.Reset(cd)
-			zr.Reset(r)
+			zr.Reset(r, nil)
 		}
 	})
 }

@@ -11,6 +11,85 @@ import (
 	"time"
 )
 
+func TestReaderWithDict(t *testing.T) {
+	var samples [][]byte
+	for i := 0; i < 1e4; i++ {
+		sample := []byte(fmt.Sprintf("this is a sample number %d", i))
+		samples = append(samples, sample)
+	}
+	dict := BuildDict(samples, 8*1024)
+
+	cd, err := NewCDict(dict)
+	if err != nil {
+		t.Fatalf("cannot create CDict: %s", err)
+	}
+	defer cd.Release()
+
+	dd, err := NewDDict(dict)
+	if err != nil {
+		t.Fatalf("cannot create DDict: %s", err)
+	}
+	defer dd.Release()
+
+	// Run serial test.
+	if err := testReaderWithDictSerial(cd, dd); err != nil {
+		t.Fatalf("error in serial test: %s", err)
+	}
+
+	// Run concurrent test.
+	ch := make(chan error, 3)
+	for i := 0; i < cap(ch); i++ {
+		go func() {
+			ch <- testReaderWithDictSerial(cd, dd)
+		}()
+	}
+	for i := 0; i < cap(ch); i++ {
+		select {
+		case err := <-ch:
+			if err != nil {
+				t.Fatalf("error in concurrent test: %s", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("timeout in concurrent test")
+		}
+	}
+}
+
+func testReaderWithDictSerial(cd *CDict, dd *DDict) error {
+	var bb bytes.Buffer
+	for i := 0; i < 8000; i++ {
+		fmt.Fprintf(&bb, "This is number %d ", i)
+	}
+	origData := bb.Bytes()
+	compressedData := CompressWithDict(nil, origData, cd)
+
+	// Decompress via Reader.
+	zr := NewReaderWithDict(bytes.NewReader(compressedData), dd)
+	defer zr.Release()
+
+	plainData, err := ioutil.ReadAll(zr)
+	if err != nil {
+		return fmt.Errorf("cannot stream decompress data with dict: %s", err)
+	}
+	if !bytes.Equal(plainData, origData) {
+		return fmt.Errorf("unexpected stream uncompressed data; got\n%q; want\n%q\nlen(plainData)=%d, len(origData)=%d",
+			plainData, origData, len(plainData), len(origData))
+	}
+
+	// Try decompressing without dict.
+	zrNoDict := NewReader(bytes.NewReader(compressedData))
+	defer zrNoDict.Release()
+
+	_, err = ioutil.ReadAll(zrNoDict)
+	if err == nil {
+		return fmt.Errorf("expecting non-nil error when stream decompressing without dict")
+	}
+	if !strings.Contains(err.Error(), "Dictionary mismatch") {
+		return fmt.Errorf("unexpected error when stream decompressing without dict; got %q; want %q", err, "Dictionary mismatch")
+	}
+	return nil
+}
+
 func TestReaderMultiFrames(t *testing.T) {
 	var bb bytes.Buffer
 	for bb.Len() < 3*128*1024 {
@@ -22,6 +101,7 @@ func TestReaderMultiFrames(t *testing.T) {
 
 	r := bytes.NewReader(cd)
 	zr := NewReader(r)
+	defer zr.Release()
 	plainData, err := ioutil.ReadAll(zr)
 	if err != nil {
 		t.Fatalf("cannot read big data: %s", err)
@@ -84,7 +164,7 @@ func TestReaderInvalidData(t *testing.T) {
 	cd[len(cd)-1]++
 
 	r = bytes.NewReader(cd)
-	zr.Reset(r)
+	zr.Reset(r, nil)
 
 	if _, err := ioutil.ReadAll(zr); err == nil {
 		t.Fatalf("expecting error when decompressing corrupted data")
@@ -138,7 +218,7 @@ func testReaderSerial(s string, cd []byte) error {
 	defer zr.Release()
 	for i := 0; i < 2; i++ {
 		r := bytes.NewReader(cd)
-		zr.Reset(r)
+		zr.Reset(r, nil)
 		if err := testReaderExt(zr, s); err != nil {
 			return err
 		}

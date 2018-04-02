@@ -2,7 +2,6 @@ package gozstd
 
 /*
 #define ZSTD_STATIC_LINKING_ONLY
-
 #include "zstd.h"
 #include "common/zstd_errors.h"
 
@@ -27,6 +26,7 @@ var (
 type Reader struct {
 	r  io.Reader
 	ds *C.ZSTD_DStream
+	dd *DDict
 
 	inBuf  *C.ZSTD_inBuffer
 	outBuf *C.ZSTD_outBuffer
@@ -39,9 +39,16 @@ type Reader struct {
 //
 // Call Release when the Reader is no longer needed.
 func NewReader(r io.Reader) *Reader {
+	return NewReaderWithDict(r, nil)
+}
+
+// NewReaderWithDict returns new zstd reader reading compressed data from r
+// using the given DDict.
+//
+// Call Release when the Reader is no longer needed.
+func NewReaderWithDict(r io.Reader, dd *DDict) *Reader {
 	ds := C.ZSTD_createDStream()
-	result := C.ZSTD_initDStream(ds)
-	ensureNoError("ZSTD_initDStream", result)
+	initDStream(ds, dd)
 
 	inBuf := (*C.ZSTD_inBuffer)(C.malloc(C.sizeof_ZSTD_inBuffer))
 	inBuf.src = C.malloc(dstreamInBufSize)
@@ -56,6 +63,7 @@ func NewReader(r io.Reader) *Reader {
 	zr := &Reader{
 		r:      r,
 		ds:     ds,
+		dd:     dd,
 		inBuf:  inBuf,
 		outBuf: outBuf,
 	}
@@ -75,17 +83,26 @@ func NewReader(r io.Reader) *Reader {
 	return zr
 }
 
-// Reset resets zr to read from r.
-func (zr *Reader) Reset(r io.Reader) {
+// Reset resets zr to read from r using the given dictionary dd.
+func (zr *Reader) Reset(r io.Reader, dd *DDict) {
 	zr.inBuf.size = 0
 	zr.inBuf.pos = 0
 	zr.outBuf.size = 0
 	zr.outBuf.pos = 0
 
-	result := C.ZSTD_resetDStream(zr.ds)
-	ensureNoError("ZSTD_resetDStream", result)
+	zr.dd = dd
+	initDStream(zr.ds, zr.dd)
 
 	zr.r = r
+}
+
+func initDStream(ds *C.ZSTD_DStream, dd *DDict) {
+	var ddict *C.ZSTD_DDict
+	if dd != nil {
+		ddict = dd.p
+	}
+	result := C.ZSTD_initDStream_usingDDict(ds, ddict)
+	ensureNoError("ZSTD_initDStream_usingDDict", result)
 }
 
 func freeDStream(v interface{}) {
@@ -113,6 +130,7 @@ func (zr *Reader) Release() {
 	zr.outBuf = nil
 
 	zr.r = nil
+	zr.dd = nil
 }
 
 // Read reads up to len(p) bytes from zr to p.

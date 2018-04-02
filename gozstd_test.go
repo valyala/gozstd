@@ -5,9 +5,80 @@ import (
 	"fmt"
 	"math/rand"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestCompressDecompressWithDict(t *testing.T) {
+	var samples [][]byte
+	for i := 0; i < 1000; i++ {
+		sample := fmt.Sprintf("%d this is line %d", i, i)
+		samples = append(samples, []byte(sample))
+	}
+	dict := BuildDict(samples, 16*1024)
+
+	cd, err := NewCDict(dict)
+	if err != nil {
+		t.Fatalf("cannot create CDict: %s", err)
+	}
+	defer cd.Release()
+	dd, err := NewDDict(dict)
+	if err != nil {
+		t.Fatalf("cannot create DDict: %s", err)
+	}
+	defer dd.Release()
+
+	// Run serial test.
+	if err := testCompressDecompressWithDictSerial(cd, dd); err != nil {
+		t.Fatalf("error in serial test: %s", err)
+	}
+
+	// Run concurrent test.
+	ch := make(chan error, 5)
+	for i := 0; i < cap(ch); i++ {
+		go func() {
+			ch <- testCompressDecompressWithDictSerial(cd, dd)
+		}()
+	}
+	for i := 0; i < cap(ch); i++ {
+		select {
+		case err := <-ch:
+			if err != nil {
+				t.Fatalf("error in concurrent test: %s", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("timeout in concurrent test")
+		}
+	}
+}
+
+func testCompressDecompressWithDictSerial(cd *CDict, dd *DDict) error {
+	for i := 0; i < 30; i++ {
+		var src []byte
+		for j := 0; j < 100; j++ {
+			src = append(src, []byte(fmt.Sprintf("line %d is this %d\n", j, i+j))...)
+		}
+		compressedData := CompressWithDict(nil, src, cd)
+		plainData, err := DecompressWithDict(nil, compressedData, dd)
+		if err != nil {
+			return fmt.Errorf("unexpected error when decompressing %d bytes: %s", len(src), err)
+		}
+		if string(plainData) != string(src) {
+			return fmt.Errorf("unexpected data after decompressing %d bytes; got\n%X; want\n%X", len(src), plainData, src)
+		}
+
+		// Try decompressing without dict.
+		plainData, err = Decompress(nil, compressedData)
+		if err == nil {
+			return fmt.Errorf("expecting non-nil error when decompressing without dict")
+		}
+		if !strings.Contains(err.Error(), "Dictionary mismatch") {
+			return fmt.Errorf("unexpected error when decompressing without dict: %q; must contain %q", err, "Dictionary mismatch")
+		}
+	}
+	return nil
+}
 
 func TestDecompressInvalidData(t *testing.T) {
 	// Try decompressing invalid data.

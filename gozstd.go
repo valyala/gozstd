@@ -5,7 +5,6 @@ package gozstd
 #cgo LDFLAGS: ${SRCDIR}/zstd/lib/libzstd.a
 
 #define ZSTD_STATIC_LINKING_ONLY
-
 #include "zstd.h"
 #include "common/zstd_errors.h"
 
@@ -19,8 +18,16 @@ static size_t ZSTD_compressCCtx_wrapper(ZSTD_CCtx* ctx, uintptr_t dst, size_t ds
     return ZSTD_compressCCtx(ctx, (void*)dst, dstCapacity, (const void*)src, srcSize, compressionLevel);
 }
 
+static size_t ZSTD_compress_usingCDict_wrapper(ZSTD_CCtx* ctx, uintptr_t dst, size_t dstCapacity, uintptr_t src, size_t srcSize, const ZSTD_CDict* cdict) {
+    return ZSTD_compress_usingCDict(ctx, (void*)dst, dstCapacity, (const void*)src, srcSize, cdict);
+}
+
 static size_t ZSTD_decompressDCtx_wrapper(ZSTD_DCtx* ctx, uintptr_t dst, size_t dstCapacity, uintptr_t src, size_t srcSize) {
     return ZSTD_decompressDCtx(ctx, (void*)dst, dstCapacity, (const void*)src, srcSize);
+}
+
+static size_t ZSTD_decompress_usingDDict_wrapper(ZSTD_DCtx* ctx, uintptr_t dst, size_t dstCapacity, uintptr_t src, size_t srcSize, const ZSTD_DDict *ddict) {
+    return ZSTD_decompress_usingDDict(ctx, (void*)dst, dstCapacity, (const void*)src, srcSize, ddict);
 }
 
 static unsigned long long ZSTD_getFrameContentSize_wrapper(uintptr_t src, size_t srcSize) {
@@ -42,18 +49,30 @@ const DefaultCompressionLevel = 3 // Obtained from ZSTD_CLEVEL_DEFAULT.
 
 // Compress appends compressed src to dst and returns the result.
 func Compress(dst, src []byte) []byte {
-	return CompressLevel(dst, src, DefaultCompressionLevel)
+	return compressWithDictLevel(dst, src, nil, DefaultCompressionLevel)
 }
 
 // CompressLevel appends compressed src to dst and returns the result.
 //
 // The given compressionLevel is used for the compression.
 func CompressLevel(dst, src []byte, compressionLevel int) []byte {
+	return compressWithDictLevel(dst, src, nil, compressionLevel)
+}
+
+// CompressWithDict appends compressed src to dst and returns the result.
+//
+// The given dictionary is used for the compression.
+func CompressWithDict(dst, src []byte, cd *CDict) []byte {
+	return compressWithDictLevel(dst, src, cd, 0)
+}
+
+func compressWithDictLevel(dst, src []byte, cd *CDict, compressionLevel int) []byte {
 	compressInitOnce.Do(compressInit)
 
 	cw := getCompressWork()
 	cw.dst = dst
 	cw.src = src
+	cw.cd = cd
 	cw.compressionLevel = compressionLevel
 	compressWorkCh <- cw
 	<-cw.done
@@ -75,6 +94,7 @@ func getCompressWork() *compressWork {
 func putCompressWork(cw *compressWork) {
 	cw.src = nil
 	cw.dst = nil
+	cw.cd = nil
 	cw.compressionLevel = 0
 	compressWorkPool.Put(cw)
 }
@@ -82,6 +102,7 @@ func putCompressWork(cw *compressWork) {
 type compressWork struct {
 	dst              []byte
 	src              []byte
+	cd               *CDict
 	compressionLevel int
 	done             chan struct{}
 }
@@ -103,13 +124,15 @@ func compressInit() {
 
 func compressWorker() {
 	cctx := C.ZSTD_createCCtx()
+	cctxDict := C.ZSTD_createCCtx()
+
 	for cw := range compressWorkCh {
-		cw.dst = compress(cctx, cw.dst, cw.src, cw.compressionLevel)
+		cw.dst = compress(cctx, cctxDict, cw.dst, cw.src, cw.cd, cw.compressionLevel)
 		cw.done <- struct{}{}
 	}
 }
 
-func compress(cctx *C.ZSTD_CCtx, dst, src []byte, compressionLevel int) []byte {
+func compress(cctx, cctxDict *C.ZSTD_CCtx, dst, src []byte, cd *CDict, compressionLevel int) []byte {
 	if len(src) == 0 {
 		return dst
 	}
@@ -119,7 +142,7 @@ func compress(cctx *C.ZSTD_CCtx, dst, src []byte, compressionLevel int) []byte {
 		// Fast path - try compressing without dst resize.
 		dst = dst[:cap(dst)]
 
-		result := compressInternal(cctx, dst[dstLen:], src, compressionLevel, false)
+		result := compressInternal(cctx, cctxDict, dst[dstLen:], src, cd, compressionLevel, false)
 		compressedSize := int(result)
 		if compressedSize >= 0 {
 			// All OK.
@@ -128,7 +151,7 @@ func compress(cctx *C.ZSTD_CCtx, dst, src []byte, compressionLevel int) []byte {
 
 		if C.ZSTD_getErrorCode(result) != C.ZSTD_error_dstSize_tooSmall {
 			// Unexpected error.
-			panic(fmt.Errorf("BUG: unexpected error during compression: %s", errStr(result)))
+			panic(fmt.Errorf("BUG: unexpected error during compression with cd=%p: %s", cd, errStr(result)))
 		}
 	}
 
@@ -139,12 +162,24 @@ func compress(cctx *C.ZSTD_CCtx, dst, src []byte, compressionLevel int) []byte {
 	}
 	dst = dst[:cap(dst)]
 
-	result := compressInternal(cctx, dst[dstLen:], src, compressionLevel, true)
+	result := compressInternal(cctx, cctxDict, dst[dstLen:], src, cd, compressionLevel, true)
 	compressedSize := int(result)
 	return dst[:dstLen+compressedSize]
 }
 
-func compressInternal(cctx *C.ZSTD_CCtx, dst, src []byte, compressionLevel int, mustSucceed bool) C.size_t {
+func compressInternal(cctx, cctxDict *C.ZSTD_CCtx, dst, src []byte, cd *CDict, compressionLevel int, mustSucceed bool) C.size_t {
+	if cd != nil {
+		result := C.ZSTD_compress_usingCDict_wrapper(cctxDict,
+			C.uintptr_t(uintptr(unsafe.Pointer(&dst[0]))),
+			C.size_t(cap(dst)),
+			C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))),
+			C.size_t(len(src)),
+			cd.p)
+		if mustSucceed {
+			ensureNoError("ZSTD_compress_usingCDict_wrapper", result)
+		}
+		return result
+	}
 	result := C.ZSTD_compressCCtx_wrapper(cctx,
 		C.uintptr_t(uintptr(unsafe.Pointer(&dst[0]))),
 		C.size_t(cap(dst)),
@@ -159,11 +194,19 @@ func compressInternal(cctx *C.ZSTD_CCtx, dst, src []byte, compressionLevel int, 
 
 // Decompress appends decompressed src to dst and returns the result.
 func Decompress(dst, src []byte) ([]byte, error) {
+	return DecompressWithDict(dst, src, nil)
+}
+
+// DecompressWithDict appends decompressed src to dst and returns the result.
+//
+// The given dictionary dd is used for the decompression.
+func DecompressWithDict(dst, src []byte, dd *DDict) ([]byte, error) {
 	decompressInitOnce.Do(decompressInit)
 
 	dw := getDecompressWork()
 	dw.dst = dst
 	dw.src = src
+	dw.dd = dd
 	decompressWorkCh <- dw
 	<-dw.done
 	dst = dw.dst
@@ -185,6 +228,7 @@ func getDecompressWork() *decompressWork {
 func putDecompressWork(dw *decompressWork) {
 	dw.dst = nil
 	dw.src = nil
+	dw.dd = nil
 	dw.err = nil
 	decompressWorkPool.Put(dw)
 }
@@ -192,6 +236,7 @@ func putDecompressWork(dw *decompressWork) {
 type decompressWork struct {
 	dst  []byte
 	src  []byte
+	dd   *DDict
 	err  error
 	done chan struct{}
 }
@@ -213,13 +258,15 @@ func decompressInit() {
 
 func decompressWorker() {
 	dctx := C.ZSTD_createDCtx()
+	dctxDict := C.ZSTD_createDCtx()
+
 	for dw := range decompressWorkCh {
-		dw.dst, dw.err = decompress(dctx, dw.dst, dw.src)
+		dw.dst, dw.err = decompress(dctx, dctxDict, dw.dst, dw.src, dw.dd)
 		dw.done <- struct{}{}
 	}
 }
 
-func decompress(dctx *C.ZSTD_DCtx, dst, src []byte) ([]byte, error) {
+func decompress(dctx, dctxDict *C.ZSTD_DCtx, dst, src []byte, dd *DDict) ([]byte, error) {
 	if len(src) == 0 {
 		return dst, nil
 	}
@@ -229,7 +276,7 @@ func decompress(dctx *C.ZSTD_DCtx, dst, src []byte) ([]byte, error) {
 		// Fast path - try decompressing without dst resize.
 		dst = dst[:cap(dst)]
 
-		result := decompressInternal(dctx, dst[dstLen:], src)
+		result := decompressInternal(dctx, dctxDict, dst[dstLen:], src, dd)
 		decompressedSize := int(result)
 		if decompressedSize >= 0 {
 			// All OK.
@@ -247,7 +294,7 @@ func decompress(dctx *C.ZSTD_DCtx, dst, src []byte) ([]byte, error) {
 		C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))), C.size_t(len(src))))
 	switch uint(decompressBound) {
 	case uint(C.ZSTD_CONTENTSIZE_UNKNOWN):
-		return streamDecompress(dst, src)
+		return streamDecompress(dst, src, dd)
 	case uint(C.ZSTD_CONTENTSIZE_ERROR):
 		return dst, fmt.Errorf("cannod decompress invalid src")
 	}
@@ -258,7 +305,7 @@ func decompress(dctx *C.ZSTD_DCtx, dst, src []byte) ([]byte, error) {
 	}
 	dst = dst[:cap(dst)]
 
-	result := decompressInternal(dctx, dst[dstLen:], src)
+	result := decompressInternal(dctx, dctxDict, dst[dstLen:], src, dd)
 	decompressedSize := int(result)
 	if decompressedSize >= 0 {
 		// All OK.
@@ -269,13 +316,20 @@ func decompress(dctx *C.ZSTD_DCtx, dst, src []byte) ([]byte, error) {
 	return dst[:dstLen], fmt.Errorf("decompression error: %s", errStr(result))
 }
 
-func decompressInternal(dctx *C.ZSTD_DCtx, dst, src []byte) C.size_t {
-	result := C.ZSTD_decompressDCtx_wrapper(dctx,
+func decompressInternal(dctx, dctxDict *C.ZSTD_DCtx, dst, src []byte, dd *DDict) C.size_t {
+	if dd != nil {
+		return C.ZSTD_decompress_usingDDict_wrapper(dctxDict,
+			C.uintptr_t(uintptr(unsafe.Pointer(&dst[0]))),
+			C.size_t(cap(dst)),
+			C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))),
+			C.size_t(len(src)),
+			dd.p)
+	}
+	return C.ZSTD_decompressDCtx_wrapper(dctx,
 		C.uintptr_t(uintptr(unsafe.Pointer(&dst[0]))),
 		C.size_t(cap(dst)),
 		C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))),
 		C.size_t(len(src)))
-	return result
 }
 
 func errStr(result C.size_t) string {
@@ -294,11 +348,11 @@ func ensureNoError(funcName string, result C.size_t) {
 	}
 }
 
-func streamDecompress(dst, src []byte) ([]byte, error) {
-	sd := getStreamDecompressor()
+func streamDecompress(dst, src []byte, dd *DDict) ([]byte, error) {
+	sd := getStreamDecompressor(dd)
 	sd.dst = dst
 	sd.src = src
-	_, err := io.CopyBuffer(sd, sd, sd.buf)
+	_, err := io.CopyBuffer(sd, sd, sd.copyBuf)
 	dst = sd.dst
 	putStreamDecompressor(sd)
 	return dst, err
@@ -308,8 +362,10 @@ type streamDecompressor struct {
 	dst       []byte
 	src       []byte
 	srcOffset int
-	buf       []byte
-	zr        *Reader
+
+	copyBuf []byte
+
+	zr *Reader
 }
 
 type srcReader streamDecompressor
@@ -333,17 +389,17 @@ func (sd *streamDecompressor) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func getStreamDecompressor() *streamDecompressor {
+func getStreamDecompressor(dd *DDict) *streamDecompressor {
 	v := streamDecompressorPool.Get()
 	if v == nil {
 		sd := &streamDecompressor{
-			buf: make([]byte, 4*1024),
+			copyBuf: make([]byte, 4*1024),
 		}
 		sd.zr = NewReader(nil)
 		v = sd
 	}
 	sd := v.(*streamDecompressor)
-	sd.zr.Reset((*srcReader)(sd))
+	sd.zr.Reset((*srcReader)(sd), dd)
 	return sd
 }
 
@@ -351,6 +407,7 @@ func putStreamDecompressor(sd *streamDecompressor) {
 	sd.dst = nil
 	sd.src = nil
 	sd.srcOffset = 0
+	sd.zr.Reset(nil, nil)
 	streamDecompressorPool.Put(sd)
 }
 

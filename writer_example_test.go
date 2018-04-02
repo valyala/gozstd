@@ -106,7 +106,7 @@ func ExampleWriter_Reset() {
 	// Write to different destinations using the same Writer.
 	for i := 0; i < 3; i++ {
 		var bb bytes.Buffer
-		zw.Reset(&bb)
+		zw.Reset(&bb, nil, DefaultCompressionLevel)
 		if _, err := zw.Write([]byte(fmt.Sprintf("line %d", i))); err != nil {
 			log.Fatalf("unexpected error when writing data: %s", err)
 		}

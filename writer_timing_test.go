@@ -35,7 +35,7 @@ func benchmarkWriter(b *testing.B, blockSize, randomness int) {
 			if err := zw.Close(); err != nil {
 				panic(fmt.Errorf("unexpected error: %s", err))
 			}
-			zw.Reset(ioutil.Discard)
+			zw.Reset(ioutil.Discard, nil, DefaultCompressionLevel)
 		}
 	})
 }

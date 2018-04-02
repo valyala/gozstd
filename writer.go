@@ -2,7 +2,6 @@ package gozstd
 
 /*
 #define ZSTD_STATIC_LINKING_ONLY
-
 #include "zstd.h"
 
 #include <stdlib.h>  // for malloc/free
@@ -27,6 +26,7 @@ type Writer struct {
 	w                io.Writer
 	compressionLevel int
 	cs               *C.ZSTD_CStream
+	cd               *CDict
 
 	inBuf  *C.ZSTD_inBuffer
 	outBuf *C.ZSTD_outBuffer
@@ -42,7 +42,7 @@ type Writer struct {
 //
 // Call Release when the Writer is no longer needed.
 func NewWriter(w io.Writer) *Writer {
-	return NewWriterLevel(w, DefaultCompressionLevel)
+	return newWriterWithDictLevel(w, nil, DefaultCompressionLevel)
 }
 
 // NewWriterLevel returns new zstd writer writing compressed data to w
@@ -53,9 +53,23 @@ func NewWriter(w io.Writer) *Writer {
 //
 // Call Release when the Writer is no longer needed.
 func NewWriterLevel(w io.Writer, compressionLevel int) *Writer {
+	return newWriterWithDictLevel(w, nil, compressionLevel)
+}
+
+// NewWriterWithDict returns new zstd writer writing compressed data to w
+// using the given cd.
+//
+// The returned writer must be closed with Close call in order
+// to finalize the compressed stream.
+//
+// Call Release when the Writer is no longer needed.
+func NewWriterWithDict(w io.Writer, cd *CDict) *Writer {
+	return newWriterWithDictLevel(w, cd, 0)
+}
+
+func newWriterWithDictLevel(w io.Writer, cd *CDict, compressionLevel int) *Writer {
 	cs := C.ZSTD_createCStream()
-	result := C.ZSTD_initCStream(cs, C.int(compressionLevel))
-	ensureNoError("ZSTD_initCStream", result)
+	initCStream(cs, cd, compressionLevel)
 
 	inBuf := (*C.ZSTD_inBuffer)(C.malloc(C.sizeof_ZSTD_inBuffer))
 	inBuf.src = C.malloc(cstreamInBufSize)
@@ -71,6 +85,7 @@ func NewWriterLevel(w io.Writer, compressionLevel int) *Writer {
 		w:                w,
 		compressionLevel: compressionLevel,
 		cs:               cs,
+		cd:               cd,
 		inBuf:            inBuf,
 		outBuf:           outBuf,
 	}
@@ -90,19 +105,28 @@ func NewWriterLevel(w io.Writer, compressionLevel int) *Writer {
 	return zw
 }
 
-// Reset resets zw to write to w.
-//
-// Reset doesn't change compression level for zw.
-func (zw *Writer) Reset(w io.Writer) {
+// Reset resets zw to write to w using the given dictionary cd and the given
+// compressionLevel.
+func (zw *Writer) Reset(w io.Writer, cd *CDict, compressionLevel int) {
 	zw.inBuf.size = 0
 	zw.inBuf.pos = 0
 	zw.outBuf.size = cstreamOutBufSize
 	zw.outBuf.pos = 0
 
-	result := C.ZSTD_resetCStream(zw.cs, C.ZSTD_CONTENTSIZE_UNKNOWN)
-	ensureNoError("ZSTD_resetCStream", result)
+	zw.cd = cd
+	initCStream(zw.cs, zw.cd, compressionLevel)
 
 	zw.w = w
+}
+
+func initCStream(cs *C.ZSTD_CStream, cd *CDict, compressionLevel int) {
+	if cd != nil {
+		result := C.ZSTD_initCStream_usingCDict(cs, cd.p)
+		ensureNoError("ZSTD_initCStream_usingCDict", result)
+	} else {
+		result := C.ZSTD_initCStream(cs, C.int(compressionLevel))
+		ensureNoError("ZSTD_initCStream", result)
+	}
 }
 
 func freeCStream(v interface{}) {
@@ -130,6 +154,7 @@ func (zw *Writer) Release() {
 	zw.outBuf = nil
 
 	zw.w = nil
+	zw.cd = nil
 }
 
 // Write writes p to zw.
