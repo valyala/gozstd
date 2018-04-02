@@ -42,7 +42,7 @@ type Writer struct {
 //
 // Call Release when the Writer is no longer needed.
 func NewWriter(w io.Writer) *Writer {
-	return newWriterWithDictLevel(w, nil, DefaultCompressionLevel)
+	return newWriterDictLevel(w, nil, DefaultCompressionLevel)
 }
 
 // NewWriterLevel returns new zstd writer writing compressed data to w
@@ -53,21 +53,21 @@ func NewWriter(w io.Writer) *Writer {
 //
 // Call Release when the Writer is no longer needed.
 func NewWriterLevel(w io.Writer, compressionLevel int) *Writer {
-	return newWriterWithDictLevel(w, nil, compressionLevel)
+	return newWriterDictLevel(w, nil, compressionLevel)
 }
 
-// NewWriterWithDict returns new zstd writer writing compressed data to w
+// NewWriterDict returns new zstd writer writing compressed data to w
 // using the given cd.
 //
 // The returned writer must be closed with Close call in order
 // to finalize the compressed stream.
 //
 // Call Release when the Writer is no longer needed.
-func NewWriterWithDict(w io.Writer, cd *CDict) *Writer {
-	return newWriterWithDictLevel(w, cd, 0)
+func NewWriterDict(w io.Writer, cd *CDict) *Writer {
+	return newWriterDictLevel(w, cd, 0)
 }
 
-func newWriterWithDictLevel(w io.Writer, cd *CDict, compressionLevel int) *Writer {
+func newWriterDictLevel(w io.Writer, cd *CDict, compressionLevel int) *Writer {
 	cs := C.ZSTD_createCStream()
 	initCStream(cs, cd, compressionLevel)
 

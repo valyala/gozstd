@@ -14,22 +14,22 @@ var Sink uint64
 var benchBlockSizes = []int{1, 1e1, 1e2, 1e3, 1e4, 1e5, 3e5}
 var benchCompressionLevels = []int{3, 5, 10}
 
-func BenchmarkDecompressWithDict(b *testing.B) {
+func BenchmarkDecompressDict(b *testing.B) {
 	for _, blockSize := range benchBlockSizes {
 		b.Run(fmt.Sprintf("blockSize_%d", blockSize), func(b *testing.B) {
 			for _, level := range benchCompressionLevels {
 				b.Run(fmt.Sprintf("level_%d", level), func(b *testing.B) {
-					benchmarkDecompressWithDict(b, blockSize, level)
+					benchmarkDecompressDict(b, blockSize, level)
 				})
 			}
 		})
 	}
 }
 
-func benchmarkDecompressWithDict(b *testing.B, blockSize, level int) {
+func benchmarkDecompressDict(b *testing.B, blockSize, level int) {
 	block := newBenchString(blockSize)
 	bd := getBenchDicts(level)
-	src := CompressWithDict(nil, block, bd.cd)
+	src := CompressDict(nil, block, bd.cd)
 	b.Logf("compressionRatio: %f", float64(len(block))/float64(len(src)))
 	b.ReportAllocs()
 	b.SetBytes(int64(blockSize))
@@ -39,7 +39,7 @@ func benchmarkDecompressWithDict(b *testing.B, blockSize, level int) {
 		var dst []byte
 		var err error
 		for pb.Next() {
-			dst, err = DecompressWithDict(dst[:0], src, bd.dd)
+			dst, err = DecompressDict(dst[:0], src, bd.dd)
 			if err != nil {
 				panic(fmt.Errorf("BUG: cannot decompress with dict: %s", err))
 			}
@@ -49,19 +49,19 @@ func benchmarkDecompressWithDict(b *testing.B, blockSize, level int) {
 	})
 }
 
-func BenchmarkCompressWithDict(b *testing.B) {
+func BenchmarkCompressDict(b *testing.B) {
 	for _, blockSize := range benchBlockSizes {
 		b.Run(fmt.Sprintf("blockSize_%d", blockSize), func(b *testing.B) {
 			for _, level := range benchCompressionLevels {
 				b.Run(fmt.Sprintf("level_%d", level), func(b *testing.B) {
-					benchmarkCompressWithDict(b, blockSize, level)
+					benchmarkCompressDict(b, blockSize, level)
 				})
 			}
 		})
 	}
 }
 
-func benchmarkCompressWithDict(b *testing.B, blockSize, level int) {
+func benchmarkCompressDict(b *testing.B, blockSize, level int) {
 	src := newBenchString(blockSize)
 	bd := getBenchDicts(level)
 	b.ReportAllocs()
@@ -71,7 +71,7 @@ func benchmarkCompressWithDict(b *testing.B, blockSize, level int) {
 		n := 0
 		var dst []byte
 		for pb.Next() {
-			dst = CompressWithDict(dst[:0], src, bd.cd)
+			dst = CompressDict(dst[:0], src, bd.cd)
 			n += len(dst)
 		}
 		atomic.AddUint64(&Sink, uint64(n))

@@ -39,14 +39,14 @@ type Reader struct {
 //
 // Call Release when the Reader is no longer needed.
 func NewReader(r io.Reader) *Reader {
-	return NewReaderWithDict(r, nil)
+	return NewReaderDict(r, nil)
 }
 
-// NewReaderWithDict returns new zstd reader reading compressed data from r
+// NewReaderDict returns new zstd reader reading compressed data from r
 // using the given DDict.
 //
 // Call Release when the Reader is no longer needed.
-func NewReaderWithDict(r io.Reader, dd *DDict) *Reader {
+func NewReaderDict(r io.Reader, dd *DDict) *Reader {
 	ds := C.ZSTD_createDStream()
 	initDStream(ds, dd)
 

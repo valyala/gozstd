@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func TestReaderWithDict(t *testing.T) {
+func TestReaderDict(t *testing.T) {
 	var samples [][]byte
 	for i := 0; i < 1e4; i++ {
 		sample := []byte(fmt.Sprintf("this is a sample number %d", i))
@@ -32,7 +32,7 @@ func TestReaderWithDict(t *testing.T) {
 	defer dd.Release()
 
 	// Run serial test.
-	if err := testReaderWithDictSerial(cd, dd); err != nil {
+	if err := testReaderDictSerial(cd, dd); err != nil {
 		t.Fatalf("error in serial test: %s", err)
 	}
 
@@ -40,7 +40,7 @@ func TestReaderWithDict(t *testing.T) {
 	ch := make(chan error, 3)
 	for i := 0; i < cap(ch); i++ {
 		go func() {
-			ch <- testReaderWithDictSerial(cd, dd)
+			ch <- testReaderDictSerial(cd, dd)
 		}()
 	}
 	for i := 0; i < cap(ch); i++ {
@@ -55,16 +55,16 @@ func TestReaderWithDict(t *testing.T) {
 	}
 }
 
-func testReaderWithDictSerial(cd *CDict, dd *DDict) error {
+func testReaderDictSerial(cd *CDict, dd *DDict) error {
 	var bb bytes.Buffer
 	for i := 0; i < 8000; i++ {
 		fmt.Fprintf(&bb, "This is number %d ", i)
 	}
 	origData := bb.Bytes()
-	compressedData := CompressWithDict(nil, origData, cd)
+	compressedData := CompressDict(nil, origData, cd)
 
 	// Decompress via Reader.
-	zr := NewReaderWithDict(bytes.NewReader(compressedData), dd)
+	zr := NewReaderDict(bytes.NewReader(compressedData), dd)
 	defer zr.Release()
 
 	plainData, err := ioutil.ReadAll(zr)

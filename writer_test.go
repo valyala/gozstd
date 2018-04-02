@@ -35,7 +35,7 @@ func TestNewWriterLevel(t *testing.T) {
 	}
 }
 
-func TestWriterWithDict(t *testing.T) {
+func TestWriterDict(t *testing.T) {
 	var samples [][]byte
 	for i := 0; i < 1e4; i++ {
 		sample := []byte(fmt.Sprintf("this is a sample number %d", i))
@@ -56,7 +56,7 @@ func TestWriterWithDict(t *testing.T) {
 	defer dd.Release()
 
 	// Run serial test.
-	if err := testWriterWithDictSerial(cd, dd); err != nil {
+	if err := testWriterDictSerial(cd, dd); err != nil {
 		t.Fatalf("error in serial test: %s", err)
 	}
 
@@ -64,7 +64,7 @@ func TestWriterWithDict(t *testing.T) {
 	ch := make(chan error, 3)
 	for i := 0; i < cap(ch); i++ {
 		go func() {
-			ch <- testWriterWithDictSerial(cd, dd)
+			ch <- testWriterDictSerial(cd, dd)
 		}()
 	}
 	for i := 0; i < cap(ch); i++ {
@@ -79,10 +79,10 @@ func TestWriterWithDict(t *testing.T) {
 	}
 }
 
-func testWriterWithDictSerial(cd *CDict, dd *DDict) error {
+func testWriterDictSerial(cd *CDict, dd *DDict) error {
 	var bb bytes.Buffer
 	var bbOrig bytes.Buffer
-	zw := NewWriterWithDict(&bb, cd)
+	zw := NewWriterDict(&bb, cd)
 	defer zw.Release()
 	w := io.MultiWriter(zw, &bbOrig)
 	for i := 0; i < 8000; i++ {
@@ -96,7 +96,7 @@ func testWriterWithDictSerial(cd *CDict, dd *DDict) error {
 
 	// Decompress via Decompress.
 	compressedData := bb.Bytes()
-	plainData, err := DecompressWithDict(nil, compressedData, dd)
+	plainData, err := DecompressDict(nil, compressedData, dd)
 	if err != nil {
 		return fmt.Errorf("cannot decompress data with dict: %s", err)
 	}
@@ -106,7 +106,7 @@ func testWriterWithDictSerial(cd *CDict, dd *DDict) error {
 	}
 
 	// Decompress via Reader.
-	zr := NewReaderWithDict(&bb, dd)
+	zr := NewReaderDict(&bb, dd)
 	defer zr.Release()
 
 	plainData, err = ioutil.ReadAll(zr)

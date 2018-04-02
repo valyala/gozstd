@@ -49,24 +49,24 @@ const DefaultCompressionLevel = 3 // Obtained from ZSTD_CLEVEL_DEFAULT.
 
 // Compress appends compressed src to dst and returns the result.
 func Compress(dst, src []byte) []byte {
-	return compressWithDictLevel(dst, src, nil, DefaultCompressionLevel)
+	return compressDictLevel(dst, src, nil, DefaultCompressionLevel)
 }
 
 // CompressLevel appends compressed src to dst and returns the result.
 //
 // The given compressionLevel is used for the compression.
 func CompressLevel(dst, src []byte, compressionLevel int) []byte {
-	return compressWithDictLevel(dst, src, nil, compressionLevel)
+	return compressDictLevel(dst, src, nil, compressionLevel)
 }
 
-// CompressWithDict appends compressed src to dst and returns the result.
+// CompressDict appends compressed src to dst and returns the result.
 //
 // The given dictionary is used for the compression.
-func CompressWithDict(dst, src []byte, cd *CDict) []byte {
-	return compressWithDictLevel(dst, src, cd, 0)
+func CompressDict(dst, src []byte, cd *CDict) []byte {
+	return compressDictLevel(dst, src, cd, 0)
 }
 
-func compressWithDictLevel(dst, src []byte, cd *CDict, compressionLevel int) []byte {
+func compressDictLevel(dst, src []byte, cd *CDict, compressionLevel int) []byte {
 	compressInitOnce.Do(compressInit)
 
 	cw := getCompressWork()
@@ -194,13 +194,13 @@ func compressInternal(cctx, cctxDict *C.ZSTD_CCtx, dst, src []byte, cd *CDict, c
 
 // Decompress appends decompressed src to dst and returns the result.
 func Decompress(dst, src []byte) ([]byte, error) {
-	return DecompressWithDict(dst, src, nil)
+	return DecompressDict(dst, src, nil)
 }
 
-// DecompressWithDict appends decompressed src to dst and returns the result.
+// DecompressDict appends decompressed src to dst and returns the result.
 //
 // The given dictionary dd is used for the decompression.
-func DecompressWithDict(dst, src []byte, dd *DDict) ([]byte, error) {
+func DecompressDict(dst, src []byte, dd *DDict) ([]byte, error) {
 	decompressInitOnce.Do(decompressInit)
 
 	dw := getDecompressWork()

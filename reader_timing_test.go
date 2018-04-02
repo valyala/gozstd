@@ -7,29 +7,29 @@ import (
 	"testing"
 )
 
-func BenchmarkReaderWithDict(b *testing.B) {
+func BenchmarkReaderDict(b *testing.B) {
 	for _, blockSize := range benchBlockSizes {
 		b.Run(fmt.Sprintf("blockSize_%d", blockSize), func(b *testing.B) {
 			for _, level := range benchCompressionLevels {
 				b.Run(fmt.Sprintf("level_%d", level), func(b *testing.B) {
-					benchmarkReaderWithDict(b, blockSize, level)
+					benchmarkReaderDict(b, blockSize, level)
 				})
 			}
 		})
 	}
 }
 
-func benchmarkReaderWithDict(b *testing.B, blockSize, level int) {
+func benchmarkReaderDict(b *testing.B, blockSize, level int) {
 	bd := getBenchDicts(level)
 	block := newBenchString(blockSize * benchBlocksPerStream)
-	cd := CompressWithDict(nil, block, bd.cd)
+	cd := CompressDict(nil, block, bd.cd)
 	b.Logf("compressionRatio: %f", float64(len(block))/float64(len(cd)))
 	b.ReportAllocs()
 	b.SetBytes(int64(len(block)))
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		r := bytes.NewReader(cd)
-		zr := NewReaderWithDict(r, bd.dd)
+		zr := NewReaderDict(r, bd.dd)
 		defer zr.Release()
 		buf := make([]byte, blockSize)
 		for pb.Next() {

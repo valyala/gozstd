@@ -8,25 +8,25 @@ import (
 
 const benchBlocksPerStream = 10
 
-func BenchmarkWriterWithDict(b *testing.B) {
+func BenchmarkWriterDict(b *testing.B) {
 	for _, blockSize := range benchBlockSizes {
 		b.Run(fmt.Sprintf("blockSize_%d", blockSize), func(b *testing.B) {
 			for _, level := range benchCompressionLevels {
 				b.Run(fmt.Sprintf("level_%d", level), func(b *testing.B) {
-					benchmarkWriterWithDict(b, blockSize, level)
+					benchmarkWriterDict(b, blockSize, level)
 				})
 			}
 		})
 	}
 }
 
-func benchmarkWriterWithDict(b *testing.B, blockSize, level int) {
+func benchmarkWriterDict(b *testing.B, blockSize, level int) {
 	bd := getBenchDicts(level)
 	block := newBenchString(blockSize * benchBlocksPerStream)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(block)))
 	b.RunParallel(func(pb *testing.PB) {
-		zw := NewWriterWithDict(ioutil.Discard, bd.cd)
+		zw := NewWriterDict(ioutil.Discard, bd.cd)
 		defer zw.Release()
 		for pb.Next() {
 			for i := 0; i < benchBlocksPerStream; i++ {

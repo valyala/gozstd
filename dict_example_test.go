@@ -26,7 +26,7 @@ func ExampleBuildDict() {
 		log.Fatalf("cannot create CDict: %s", err)
 	}
 	defer cd.Release()
-	compressedData := CompressWithDict(nil, plainData, cd)
+	compressedData := CompressDict(nil, plainData, cd)
 
 	// The compressedData must be decompressed with the same dict.
 	dd, err := NewDDict(dict)
@@ -34,7 +34,7 @@ func ExampleBuildDict() {
 		log.Fatalf("cannot create DDict: %s", err)
 	}
 	defer dd.Release()
-	decompressedData, err := DecompressWithDict(nil, compressedData, dd)
+	decompressedData, err := DecompressDict(nil, compressedData, dd)
 	if err != nil {
 		log.Fatalf("cannot decompress data: %s", err)
 	}

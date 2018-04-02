@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func TestCompressDecompressWithDict(t *testing.T) {
+func TestCompressDecompressDict(t *testing.T) {
 	var samples [][]byte
 	for i := 0; i < 1000; i++ {
 		sample := fmt.Sprintf("%d this is line %d", i, i)
@@ -30,7 +30,7 @@ func TestCompressDecompressWithDict(t *testing.T) {
 	defer dd.Release()
 
 	// Run serial test.
-	if err := testCompressDecompressWithDictSerial(cd, dd); err != nil {
+	if err := testCompressDecompressDictSerial(cd, dd); err != nil {
 		t.Fatalf("error in serial test: %s", err)
 	}
 
@@ -38,7 +38,7 @@ func TestCompressDecompressWithDict(t *testing.T) {
 	ch := make(chan error, 5)
 	for i := 0; i < cap(ch); i++ {
 		go func() {
-			ch <- testCompressDecompressWithDictSerial(cd, dd)
+			ch <- testCompressDecompressDictSerial(cd, dd)
 		}()
 	}
 	for i := 0; i < cap(ch); i++ {
@@ -53,14 +53,14 @@ func TestCompressDecompressWithDict(t *testing.T) {
 	}
 }
 
-func testCompressDecompressWithDictSerial(cd *CDict, dd *DDict) error {
+func testCompressDecompressDictSerial(cd *CDict, dd *DDict) error {
 	for i := 0; i < 30; i++ {
 		var src []byte
 		for j := 0; j < 100; j++ {
 			src = append(src, []byte(fmt.Sprintf("line %d is this %d\n", j, i+j))...)
 		}
-		compressedData := CompressWithDict(nil, src, cd)
-		plainData, err := DecompressWithDict(nil, compressedData, dd)
+		compressedData := CompressDict(nil, src, cd)
+		plainData, err := DecompressDict(nil, compressedData, dd)
 		if err != nil {
 			return fmt.Errorf("unexpected error when decompressing %d bytes: %s", len(src), err)
 		}
