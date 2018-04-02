@@ -11,6 +11,30 @@ import (
 	"time"
 )
 
+func TestNewWriterLevel(t *testing.T) {
+	src := []byte(newTestString(512, 3))
+	for level := 0; level < 23; level++ {
+		var bb bytes.Buffer
+		zw := NewWriterLevel(&bb, level)
+		_, err := io.Copy(zw, bytes.NewReader(src))
+		if err != nil {
+			t.Fatalf("error when compressing on level %d: %s", level, err)
+		}
+		if err := zw.Close(); err != nil {
+			t.Fatalf("error when closing zw on level %d: %s", level, err)
+		}
+		zw.Release()
+
+		plainData, err := Decompress(nil, bb.Bytes())
+		if err != nil {
+			t.Fatalf("cannot decompress data on level %d: %s", level, err)
+		}
+		if !bytes.Equal(plainData, src) {
+			t.Fatalf("unexpected data obtained after decompression on level %d; got\n%X; want\n%X", level, plainData, src)
+		}
+	}
+}
+
 func TestWriterMultiFrames(t *testing.T) {
 	var bb bytes.Buffer
 	var bbOrig bytes.Buffer
