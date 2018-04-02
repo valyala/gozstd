@@ -10,7 +10,7 @@ import (
 func BenchmarkReader(b *testing.B) {
 	for _, blockSize := range []int{1, 10, 100, 1000, 64 * 1024} {
 		b.Run(fmt.Sprintf("blockSize_%d", blockSize), func(b *testing.B) {
-			for _, randomness := range []int{1, 10, 20, 50, 256} {
+			for _, randomness := range []int{1, 2, 10, 256} {
 				b.Run(fmt.Sprintf("randomness_%d", randomness), func(b *testing.B) {
 					benchmarkReader(b, blockSize, randomness)
 				})
