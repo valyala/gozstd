@@ -12,3 +12,5 @@
   * Optimized for high concurrency.
   * Proper [Writer.Flush](https://godoc.org/github.com/valyala/gozstd#Writer.Flush)
     for network apps.
+  * Supports [zstd dictionaries](https://github.com/facebook/zstd#the-case-for-small-data-compression)
+    for better small data compression.
