@@ -7,21 +7,63 @@ import (
 	"testing"
 )
 
-func BenchmarkReader(b *testing.B) {
-	for _, blockSize := range []int{1, 10, 100, 1000, 64 * 1024} {
+func BenchmarkReaderWithDict(b *testing.B) {
+	for _, blockSize := range benchBlockSizes {
 		b.Run(fmt.Sprintf("blockSize_%d", blockSize), func(b *testing.B) {
-			for _, randomness := range []int{1, 2, 10, 256} {
-				b.Run(fmt.Sprintf("randomness_%d", randomness), func(b *testing.B) {
-					benchmarkReader(b, blockSize, randomness)
+			for _, level := range benchCompressionLevels {
+				b.Run(fmt.Sprintf("level_%d", level), func(b *testing.B) {
+					benchmarkReaderWithDict(b, blockSize, level)
 				})
 			}
 		})
 	}
 }
 
-func benchmarkReader(b *testing.B, blockSize, randomness int) {
-	block := []byte(newTestString(blockSize*100, randomness))
-	cd := Compress(nil, block)
+func benchmarkReaderWithDict(b *testing.B, blockSize, level int) {
+	bd := getBenchDicts(level)
+	block := newBenchString(blockSize * benchBlocksPerStream)
+	cd := CompressWithDict(nil, block, bd.cd)
+	b.Logf("compressionRatio: %f", float64(len(block))/float64(len(cd)))
+	b.ReportAllocs()
+	b.SetBytes(int64(len(block)))
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		r := bytes.NewReader(cd)
+		zr := NewReaderWithDict(r, bd.dd)
+		defer zr.Release()
+		buf := make([]byte, blockSize)
+		for pb.Next() {
+			for {
+				_, err := io.ReadFull(zr, buf)
+				if err != nil {
+					if err == io.EOF {
+						break
+					}
+					panic(fmt.Errorf("unexpected error: %s", err))
+				}
+			}
+			r.Reset(cd)
+			zr.Reset(r, bd.dd)
+		}
+	})
+}
+
+func BenchmarkReader(b *testing.B) {
+	for _, blockSize := range benchBlockSizes {
+		b.Run(fmt.Sprintf("blockSize_%d", blockSize), func(b *testing.B) {
+			for _, level := range benchCompressionLevels {
+				b.Run(fmt.Sprintf("level_%d", level), func(b *testing.B) {
+					benchmarkReader(b, blockSize, level)
+				})
+			}
+		})
+	}
+}
+
+func benchmarkReader(b *testing.B, blockSize, level int) {
+	block := newBenchString(blockSize * benchBlocksPerStream)
+	cd := CompressLevel(nil, block, level)
+	b.Logf("compressionRatio: %f", float64(len(block))/float64(len(cd)))
 	b.ReportAllocs()
 	b.SetBytes(int64(len(block)))
 	b.ResetTimer()

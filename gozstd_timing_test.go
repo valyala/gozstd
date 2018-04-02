@@ -1,36 +1,157 @@
 package gozstd
 
 import (
+	"bytes"
 	"fmt"
+	"math/rand"
+	"sync"
 	"sync/atomic"
 	"testing"
 )
 
 var Sink uint64
 
-func BenchmarkCompress(b *testing.B) {
-	for _, blockSize := range []int{1, 10, 100, 1000, 64 * 1024} {
+var benchBlockSizes = []int{1, 1e1, 1e2, 1e3, 1e4, 1e5, 3e5}
+var benchCompressionLevels = []int{3, 5, 10}
+
+func BenchmarkDecompressWithDict(b *testing.B) {
+	for _, blockSize := range benchBlockSizes {
 		b.Run(fmt.Sprintf("blockSize_%d", blockSize), func(b *testing.B) {
-			for _, randomness := range []int{1, 2, 10, 256} {
-				b.Run(fmt.Sprintf("randomness_%d", randomness), func(b *testing.B) {
-					benchmarkCompress(b, blockSize, randomness)
+			for _, level := range benchCompressionLevels {
+				b.Run(fmt.Sprintf("level_%d", level), func(b *testing.B) {
+					benchmarkDecompressWithDict(b, blockSize, level)
 				})
 			}
 		})
 	}
 }
 
-func benchmarkCompress(b *testing.B, blockSize, randomness int) {
-	testStr := newTestString(blockSize, randomness)
-	src := []byte(testStr)
+func benchmarkDecompressWithDict(b *testing.B, blockSize, level int) {
+	block := newBenchString(blockSize)
+	bd := getBenchDicts(level)
+	src := CompressWithDict(nil, block, bd.cd)
+	b.Logf("compressionRatio: %f", float64(len(block))/float64(len(src)))
 	b.ReportAllocs()
-	b.SetBytes(int64(len(testStr)))
+	b.SetBytes(int64(blockSize))
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		n := 0
+		var dst []byte
+		var err error
+		for pb.Next() {
+			dst, err = DecompressWithDict(dst[:0], src, bd.dd)
+			if err != nil {
+				panic(fmt.Errorf("BUG: cannot decompress with dict: %s", err))
+			}
+			n += len(dst)
+		}
+		atomic.AddUint64(&Sink, uint64(n))
+	})
+}
+
+func BenchmarkCompressWithDict(b *testing.B) {
+	for _, blockSize := range benchBlockSizes {
+		b.Run(fmt.Sprintf("blockSize_%d", blockSize), func(b *testing.B) {
+			for _, level := range benchCompressionLevels {
+				b.Run(fmt.Sprintf("level_%d", level), func(b *testing.B) {
+					benchmarkCompressWithDict(b, blockSize, level)
+				})
+			}
+		})
+	}
+}
+
+func benchmarkCompressWithDict(b *testing.B, blockSize, level int) {
+	src := newBenchString(blockSize)
+	bd := getBenchDicts(level)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(src)))
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		n := 0
 		var dst []byte
 		for pb.Next() {
-			dst = Compress(dst[:0], src)
+			dst = CompressWithDict(dst[:0], src, bd.cd)
+			n += len(dst)
+		}
+		atomic.AddUint64(&Sink, uint64(n))
+	})
+}
+
+func getBenchDicts(level int) *benchDicts {
+	benchDictsLock.Lock()
+	tmp := benchDictsMap[level]
+	if tmp == nil {
+		tmp = newBenchDicts(level)
+		benchDictsMap[level] = tmp
+	}
+	benchDictsLock.Unlock()
+	return tmp
+}
+
+type benchDicts struct {
+	cd *CDict
+	dd *DDict
+}
+
+var benchDictsMap = make(map[int]*benchDicts)
+var benchDictsLock sync.Mutex
+
+func newBenchDicts(level int) *benchDicts {
+	var samples [][]byte
+	for i := 0; i < 300; i++ {
+		sampleLen := rand.Intn(300)
+		sample := newBenchString(sampleLen)
+		samples = append(samples, sample)
+	}
+
+	dict := BuildDict(samples, 32*1024)
+	cd, err := NewCDictLevel(dict, level)
+	if err != nil {
+		panic(fmt.Errorf("cannot create CDict: %s", err))
+	}
+	dd, err := NewDDict(dict)
+	if err != nil {
+		panic(fmt.Errorf("cannot create DDict: %s", err))
+	}
+	return &benchDicts{
+		cd: cd,
+		dd: dd,
+	}
+}
+
+func newBenchString(blockSize int) []byte {
+	var bb bytes.Buffer
+	line := 0
+	for bb.Len() < blockSize {
+		fmt.Fprintf(&bb, "line %d, size %d, hex %08X\n", line, bb.Len(), line)
+		line++
+	}
+	return bb.Bytes()[:blockSize]
+}
+
+func BenchmarkCompress(b *testing.B) {
+	for _, blockSize := range benchBlockSizes {
+		b.Run(fmt.Sprintf("blockSize_%d", blockSize), func(b *testing.B) {
+			for _, level := range benchCompressionLevels {
+				b.Run(fmt.Sprintf("level_%d", level), func(b *testing.B) {
+					benchmarkCompress(b, blockSize, level)
+				})
+			}
+		})
+	}
+}
+
+func benchmarkCompress(b *testing.B, blockSize, level int) {
+	src := newBenchString(blockSize)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(src)))
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		n := 0
+		var dst []byte
+		for pb.Next() {
+			dst = CompressLevel(dst[:0], src, level)
 			n += len(dst)
 		}
 		atomic.AddUint64(&Sink, uint64(n))
@@ -38,22 +159,23 @@ func benchmarkCompress(b *testing.B, blockSize, randomness int) {
 }
 
 func BenchmarkDecompress(b *testing.B) {
-	for _, blockSize := range []int{1, 10, 100, 1000, 64 * 1024} {
+	for _, blockSize := range benchBlockSizes {
 		b.Run(fmt.Sprintf("blockSize_%d", blockSize), func(b *testing.B) {
-			for _, randomness := range []int{1, 2, 10, 256} {
-				b.Run(fmt.Sprintf("randomness_%d", randomness), func(b *testing.B) {
-					benchmarkDecompress(b, blockSize, randomness)
+			for _, level := range benchCompressionLevels {
+				b.Run(fmt.Sprintf("level_%d", level), func(b *testing.B) {
+					benchmarkDecompress(b, blockSize, level)
 				})
 			}
 		})
 	}
 }
 
-func benchmarkDecompress(b *testing.B, blockSize, randomness int) {
-	testStr := newTestString(blockSize, randomness)
-	src := Compress(nil, []byte(testStr))
+func benchmarkDecompress(b *testing.B, blockSize, level int) {
+	block := newBenchString(blockSize)
+	src := CompressLevel(nil, block, level)
+	b.Logf("compressionRatio: %f", float64(len(block))/float64(len(src)))
 	b.ReportAllocs()
-	b.SetBytes(int64(len(testStr)))
+	b.SetBytes(int64(len(block)))
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		n := 0

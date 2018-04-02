@@ -6,27 +6,30 @@ import (
 	"testing"
 )
 
-func BenchmarkWriter(b *testing.B) {
-	for _, blockSize := range []int{1, 10, 100, 1000, 64 * 1024} {
+const benchBlocksPerStream = 10
+
+func BenchmarkWriterWithDict(b *testing.B) {
+	for _, blockSize := range benchBlockSizes {
 		b.Run(fmt.Sprintf("blockSize_%d", blockSize), func(b *testing.B) {
-			for _, randomness := range []int{1, 2, 10, 256} {
-				b.Run(fmt.Sprintf("randomness_%d", randomness), func(b *testing.B) {
-					benchmarkWriter(b, blockSize, randomness)
+			for _, level := range benchCompressionLevels {
+				b.Run(fmt.Sprintf("level_%d", level), func(b *testing.B) {
+					benchmarkWriterWithDict(b, blockSize, level)
 				})
 			}
 		})
 	}
 }
 
-func benchmarkWriter(b *testing.B, blockSize, randomness int) {
-	block := []byte(newTestString(blockSize*100, randomness))
+func benchmarkWriterWithDict(b *testing.B, blockSize, level int) {
+	bd := getBenchDicts(level)
+	block := newBenchString(blockSize * benchBlocksPerStream)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(block)))
 	b.RunParallel(func(pb *testing.PB) {
-		zw := NewWriter(ioutil.Discard)
+		zw := NewWriterWithDict(ioutil.Discard, bd.cd)
 		defer zw.Release()
 		for pb.Next() {
-			for i := 0; i < 100; i++ {
+			for i := 0; i < benchBlocksPerStream; i++ {
 				_, err := zw.Write(block[i*blockSize : (i+1)*blockSize])
 				if err != nil {
 					panic(fmt.Errorf("unexpected error: %s", err))
@@ -35,7 +38,41 @@ func benchmarkWriter(b *testing.B, blockSize, randomness int) {
 			if err := zw.Close(); err != nil {
 				panic(fmt.Errorf("unexpected error: %s", err))
 			}
-			zw.Reset(ioutil.Discard, nil, DefaultCompressionLevel)
+			zw.Reset(ioutil.Discard, bd.cd, level)
+		}
+	})
+}
+
+func BenchmarkWriter(b *testing.B) {
+	for _, blockSize := range benchBlockSizes {
+		b.Run(fmt.Sprintf("blockSize_%d", blockSize), func(b *testing.B) {
+			for _, level := range benchCompressionLevels {
+				b.Run(fmt.Sprintf("level_%d", level), func(b *testing.B) {
+					benchmarkWriter(b, blockSize, level)
+				})
+			}
+		})
+	}
+}
+
+func benchmarkWriter(b *testing.B, blockSize, level int) {
+	block := newBenchString(blockSize * benchBlocksPerStream)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(block)))
+	b.RunParallel(func(pb *testing.PB) {
+		zw := NewWriterLevel(ioutil.Discard, level)
+		defer zw.Release()
+		for pb.Next() {
+			for i := 0; i < benchBlocksPerStream; i++ {
+				_, err := zw.Write(block[i*blockSize : (i+1)*blockSize])
+				if err != nil {
+					panic(fmt.Errorf("unexpected error: %s", err))
+				}
+			}
+			if err := zw.Close(); err != nil {
+				panic(fmt.Errorf("unexpected error: %s", err))
+			}
+			zw.Reset(ioutil.Discard, nil, level)
 		}
 	})
 }
