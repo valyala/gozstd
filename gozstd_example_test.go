@@ -41,23 +41,28 @@ func ExampleCompress_noAllocs() {
 	// Allocate a buffer for compressed results.
 	cbuf := make([]byte, 100)
 
-	// If the size of compressed data fits cap(cbuf), then Compress
-	// will put compressed data into cbuf without additional allocations.
-	compressedData := Compress(cbuf[:0], data)
+	for i := 0; i < 3; i++ {
+		// If the size of compressed data fits cap(cbuf), then Compress
+		// will put compressed data into cbuf without additional allocations.
+		compressedData := Compress(cbuf[:0], data)
 
-	// Verify Compress returned cbuf instead of allocating new one.
-	if &compressedData[0] != &cbuf[0] {
-		log.Fatalf("Compress returned new cbuf; got %p; want %p", &compressedData[0], &cbuf[0])
+		// Verify Compress returned cbuf instead of allocating new one.
+		if &compressedData[0] != &cbuf[0] {
+			log.Fatalf("Compress returned new cbuf; got %p; want %p", &compressedData[0], &cbuf[0])
+		}
+
+		decompressedData, err := Decompress(nil, compressedData)
+		if err != nil {
+			log.Fatalf("cannot decompress data: %s", err)
+		}
+
+		fmt.Printf("%d. %s\n", i, decompressedData)
 	}
 
-	decompressedData, err := Decompress(nil, compressedData)
-	if err != nil {
-		log.Fatalf("cannot decompress data: %s", err)
-	}
-
-	fmt.Printf("%s", decompressedData)
 	// Output:
-	// foo bar baz
+	// 0. foo bar baz
+	// 1. foo bar baz
+	// 2. foo bar baz
 }
 
 func ExampleDecompress_noAllocs() {
@@ -68,19 +73,24 @@ func ExampleDecompress_noAllocs() {
 	// Allocate a buffer for decompressed results.
 	dbuf := make([]byte, 100)
 
-	// If the size of decompressed data fits cap(dbuf), then Decompress
-	// will put decompressed data into dbuf without additional allocations.
-	decompressedData, err := Decompress(dbuf[:0], compressedData)
-	if err != nil {
-		log.Fatalf("cannot decompress data: %s", err)
+	for i := 0; i < 3; i++ {
+		// If the size of decompressed data fits cap(dbuf), then Decompress
+		// will put decompressed data into dbuf without additional allocations.
+		decompressedData, err := Decompress(dbuf[:0], compressedData)
+		if err != nil {
+			log.Fatalf("cannot decompress data: %s", err)
+		}
+
+		// Verify Decompress returned dbuf instead of allocating new one.
+		if &decompressedData[0] != &dbuf[0] {
+			log.Fatalf("Decompress returned new dbuf; got %p; want %p", &decompressedData[0], &dbuf[0])
+		}
+
+		fmt.Printf("%d. %s\n", i, decompressedData)
 	}
 
-	// Verify Decompress returned dbuf instead of allocating new one.
-	if &decompressedData[0] != &dbuf[0] {
-		log.Fatalf("Decompress returned new dbuf; got %p; want %p", &decompressedData[0], &dbuf[0])
-	}
-
-	fmt.Printf("%s", decompressedData)
 	// Output:
-	// foo bar baz
+	// 0. foo bar baz
+	// 1. foo bar baz
+	// 2. foo bar baz
 }
