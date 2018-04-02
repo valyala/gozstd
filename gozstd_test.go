@@ -1,6 +1,7 @@
 package gozstd
 
 import (
+	"bytes"
 	"fmt"
 	"math/rand"
 	"runtime"
@@ -136,4 +137,22 @@ func newTestString(size, randomness int) string {
 		s[i] = byte(rand.Intn(randomness))
 	}
 	return string(s)
+}
+
+func TestCompressDecompressMultiFrames(t *testing.T) {
+	var bb bytes.Buffer
+	for bb.Len() < 3*128*1024 {
+		fmt.Fprintf(&bb, "compress/decompress big data %d, ", bb.Len())
+	}
+	origData := append([]byte{}, bb.Bytes()...)
+
+	cd := Compress(nil, bb.Bytes())
+	plainData, err := Decompress(nil, cd)
+	if err != nil {
+		t.Fatalf("cannot decompress big data: %s", err)
+	}
+	if !bytes.Equal(plainData, origData) {
+		t.Fatalf("unexpected data decompressed: got\n%q; want\n%q\nlen(data)=%d, len(orig)=%d",
+			plainData, origData, len(plainData), len(origData))
+	}
 }

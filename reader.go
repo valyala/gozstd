@@ -33,8 +33,6 @@ type Reader struct {
 
 	inBufGo  []byte
 	outBufGo []byte
-
-	eof bool
 }
 
 // NewReader returns new zstd reader reading compressed data from r.
@@ -88,7 +86,6 @@ func (zr *Reader) Reset(r io.Reader) {
 	ensureNoError("ZSTD_resetDStream", result)
 
 	zr.r = r
-	zr.eof = false
 }
 
 func freeDStream(v interface{}) {
@@ -132,23 +129,21 @@ func (zr *Reader) Read(p []byte) (int, error) {
 
 	n := copy(p, zr.outBufGo[zr.outBuf.pos:zr.outBuf.size])
 	zr.outBuf.pos += C.size_t(n)
-	if zr.eof && zr.outBuf.pos == zr.outBuf.size {
-		return n, io.EOF
-	}
 	return n, nil
 }
 
 func (zr *Reader) readInBuf() error {
-	// Read inBuf.
-	n, err := zr.r.Read(zr.inBufGo[zr.inBuf.size:])
-	zr.inBuf.size += C.size_t(n)
-	if err != nil {
-		if err != io.EOF {
-			return fmt.Errorf("cannot read data from the underlying reader: %s", err)
-		}
-		zr.eof = true
-		if n == 0 {
-			return io.EOF
+	if zr.inBuf.size == 0 {
+		// Read inBuf.
+		n, err := zr.r.Read(zr.inBufGo)
+		zr.inBuf.size = C.size_t(n)
+		if err != nil {
+			if err != io.EOF {
+				return fmt.Errorf("cannot read data from the underlying reader: %s", err)
+			}
+			if n == 0 {
+				return io.EOF
+			}
 		}
 	}
 

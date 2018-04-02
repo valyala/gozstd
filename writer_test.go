@@ -3,12 +3,40 @@ package gozstd
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math/rand"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestWriterMultiFrames(t *testing.T) {
+	var bb bytes.Buffer
+	var bbOrig bytes.Buffer
+	zw := NewWriter(&bb)
+	defer zw.Release()
+
+	w := io.MultiWriter(zw, &bbOrig)
+	for bbOrig.Len() < 3*128*1024 {
+		if _, err := fmt.Fprintf(w, "writer big data %d, ", bbOrig.Len()); err != nil {
+			t.Fatalf("unexpected error when writing to zw: %s", err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("unexpected error when closing zw: %s", err)
+	}
+
+	plainData, err := Decompress(nil, bb.Bytes())
+	if err != nil {
+		t.Fatalf("cannot decompress big data: %s", err)
+	}
+	origData := bbOrig.Bytes()
+	if !bytes.Equal(plainData, origData) {
+		t.Fatalf("unexpected data decompressed: got\n%q; want\n%q\nlen(data)=%d, len(orig)=%d",
+			plainData, origData, len(plainData), len(origData))
+	}
+}
 
 func TestWriterBadUnderlyingWriter(t *testing.T) {
 	zw := NewWriter(&badWriter{})

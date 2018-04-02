@@ -11,6 +11,27 @@ import (
 	"time"
 )
 
+func TestReaderMultiFrames(t *testing.T) {
+	var bb bytes.Buffer
+	for bb.Len() < 3*128*1024 {
+		fmt.Fprintf(&bb, "reader big data %d, ", bb.Len())
+	}
+	origData := append([]byte{}, bb.Bytes()...)
+
+	cd := Compress(nil, bb.Bytes())
+
+	r := bytes.NewReader(cd)
+	zr := NewReader(r)
+	plainData, err := ioutil.ReadAll(zr)
+	if err != nil {
+		t.Fatalf("cannot read big data: %s", err)
+	}
+	if !bytes.Equal(plainData, origData) {
+		t.Fatalf("unexpected data read: got\n%q; want\n%q\nlen(data)=%d, len(orig)=%d",
+			plainData, origData, len(plainData), len(origData))
+	}
+}
+
 func TestReaderBadUnderlyingReader(t *testing.T) {
 	r := &badReader{
 		b: Compress(nil, []byte(newTestString(64*1024, 30))),
