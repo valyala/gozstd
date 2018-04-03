@@ -38,20 +38,14 @@ func ExampleDecompress_simple() {
 func ExampleCompress_noAllocs() {
 	data := []byte("foo bar baz")
 
-	// Allocate a buffer for compressed results.
-	cbuf := make([]byte, 100)
+	// Compressed data will be put into cbuf.
+	var cbuf []byte
 
-	for i := 0; i < 3; i++ {
-		// If the size of compressed data fits cap(cbuf), then Compress
-		// will put compressed data into cbuf without additional allocations.
-		compressedData := Compress(cbuf[:0], data)
+	for i := 0; i < 5; i++ {
+		// Compress re-uses cbuf for the compressed data.
+		cbuf = Compress(cbuf[:0], data)
 
-		// Verify Compress returned cbuf instead of allocating new one.
-		if &compressedData[0] != &cbuf[0] {
-			log.Fatalf("Compress returned new cbuf; got %p; want %p", &compressedData[0], &cbuf[0])
-		}
-
-		decompressedData, err := Decompress(nil, compressedData)
+		decompressedData, err := Decompress(nil, cbuf)
 		if err != nil {
 			log.Fatalf("cannot decompress data: %s", err)
 		}
@@ -63,6 +57,8 @@ func ExampleCompress_noAllocs() {
 	// 0. foo bar baz
 	// 1. foo bar baz
 	// 2. foo bar baz
+	// 3. foo bar baz
+	// 4. foo bar baz
 }
 
 func ExampleDecompress_noAllocs() {
@@ -70,27 +66,24 @@ func ExampleDecompress_noAllocs() {
 
 	compressedData := Compress(nil, data)
 
-	// Allocate a buffer for decompressed results.
-	dbuf := make([]byte, 100)
+	// Decompressed data will be put into dbuf.
+	var dbuf []byte
 
-	for i := 0; i < 3; i++ {
-		// If the size of decompressed data fits cap(dbuf), then Decompress
-		// will put decompressed data into dbuf without additional allocations.
-		decompressedData, err := Decompress(dbuf[:0], compressedData)
+	for i := 0; i < 5; i++ {
+		// Decompress re-uses dbuf for the decompressed data.
+		var err error
+		dbuf, err = Decompress(dbuf[:0], compressedData)
 		if err != nil {
 			log.Fatalf("cannot decompress data: %s", err)
 		}
 
-		// Verify Decompress returned dbuf instead of allocating new one.
-		if &decompressedData[0] != &dbuf[0] {
-			log.Fatalf("Decompress returned new dbuf; got %p; want %p", &decompressedData[0], &dbuf[0])
-		}
-
-		fmt.Printf("%d. %s\n", i, decompressedData)
+		fmt.Printf("%d. %s\n", i, dbuf)
 	}
 
 	// Output:
 	// 0. foo bar baz
 	// 1. foo bar baz
 	// 2. foo bar baz
+	// 3. foo bar baz
+	// 4. foo bar baz
 }
