@@ -31,8 +31,7 @@ import (
 	"unsafe"
 )
 
-// Out of blue value close to ZDICT_DICTSIZE_MIN
-const minDictLen = 1024
+const minDictLen = C.ZDICT_DICTSIZE_MIN
 
 // BuildDict returns dictionary built from the given samples.
 //
