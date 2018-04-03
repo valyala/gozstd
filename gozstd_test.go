@@ -10,6 +10,79 @@ import (
 	"time"
 )
 
+func TestCompressDecompressDistinctConcurrentDicts(t *testing.T) {
+	// Build multiple distinct dicts.
+	var cdicts []*CDict
+	var ddicts []*DDict
+	defer func() {
+		for _, cd := range cdicts {
+			cd.Release()
+		}
+		for _, dd := range ddicts {
+			dd.Release()
+		}
+	}()
+	for i := 0; i < 4; i++ {
+		var samples [][]byte
+		for j := 0; j < 1000; j++ {
+			sample := fmt.Sprintf("this is %d,%d sample", j, i)
+			samples = append(samples, []byte(sample))
+		}
+		dict := BuildDict(samples, 4*1024)
+		cd, err := NewCDict(dict)
+		if err != nil {
+			t.Fatalf("cannot create CDict: %s", err)
+		}
+		cdicts = append(cdicts, cd)
+		dd, err := NewDDict(dict)
+		if err != nil {
+			t.Fatalf("cannot create DDict: %s", err)
+		}
+		ddicts = append(ddicts, dd)
+	}
+
+	// Build data for the compression.
+	var bb bytes.Buffer
+	i := 0
+	for bb.Len() < 1e4 {
+		fmt.Fprintf(&bb, "%d sample line this is %d", bb.Len(), i)
+		i++
+	}
+	data := bb.Bytes()
+
+	// Run concurrent goroutines compressing/decompressing with distinct dicts.
+	ch := make(chan error, len(cdicts))
+	for i := 0; i < cap(ch); i++ {
+		go func(cd *CDict, dd *DDict) {
+			var compressedData, decompressedData []byte
+			for j := 0; j < 10; j++ {
+				compressedData = CompressDict(compressedData[:0], []byte(data), cd)
+
+				var err error
+				decompressedData, err = DecompressDict(decompressedData[:0], compressedData, dd)
+				if err != nil {
+					ch <- fmt.Errorf("cannot decompress data: %s", err)
+					return
+				}
+				if !bytes.Equal(decompressedData, data) {
+					ch <- fmt.Errorf("unexpected decompressed data; got\n%q; want\n%q", decompressedData, data)
+				}
+			}
+			ch <- nil
+		}(cdicts[i], ddicts[i])
+	}
+	for i := 0; i < cap(ch); i++ {
+		select {
+		case err := <-ch:
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("timeout")
+		}
+	}
+}
+
 func TestCompressDecompressDict(t *testing.T) {
 	var samples [][]byte
 	for i := 0; i < 1000; i++ {
