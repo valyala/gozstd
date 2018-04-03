@@ -52,7 +52,6 @@ func ExampleWriter_Flush() {
 			if err := zw.Flush(); err != nil {
 				log.Fatalf("unexpected error when flushing data: %s", err)
 			}
-
 		}
 		if err := zw.Close(); err != nil {
 			log.Fatalf("unexpected error when closing zw: %s", err)
@@ -64,8 +63,7 @@ func ExampleWriter_Flush() {
 	}()
 
 	// Read data from writer goroutine.
-	var a []int
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 3; i++ {
 		// Notify the writer we are ready for reading the next line.
 		readerReadyCh <- i
 
@@ -77,7 +75,7 @@ func ExampleWriter_Flush() {
 			}
 			log.Fatalf("unexpected error when reading data: %s", err)
 		}
-		a = append(a, n)
+		fmt.Println(n)
 	}
 
 	// Notify the writer gorotine it must be finished.
@@ -93,10 +91,10 @@ func ExampleWriter_Flush() {
 	// Wait for writer goroutine to finish.
 	<-writerDoneCh
 
-	fmt.Println(a)
-
 	// Output:
-	// [0 1 2 3 4]
+	// 0
+	// 1
+	// 2
 }
 
 func ExampleWriter_Reset() {
