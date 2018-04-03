@@ -35,8 +35,8 @@ The easiest way is just to use [Compress](https://godoc.org/github.com/valyala/g
 	compressedData := Compress(nil, data)
 ```
 
-There is also [Writer](https://godoc.org/github.com/valyala/gozstd#Writer)
-for stream compression.
+There is also [StreamCompress](https://godoc.org/github.com/valyala/gozstd#StreamCompress)
+and [Writer](https://godoc.org/github.com/valyala/gozstd#Writer) for stream compression.
 
 ### How to decompress data?
 
@@ -46,8 +46,8 @@ The easiest way is just to use [Decompress](https://godoc.org/github.com/valyala
 	data, err := Decompress(nil, compressedData)
 ```
 
-There is also [Reader](https://godoc.org/github.com/valyala/gozstd#Reader)
-for stream decompression.
+There is also [StreamDecompress](https://godoc.org/github.com/valyala/gozstd#StreamDecompress)
+and [Reader](https://godoc.org/github.com/valyala/gozstd#Reader) for stream decompression.
 
 
 ## FAQ
