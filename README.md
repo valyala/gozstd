@@ -5,6 +5,7 @@
 
 # gozstd - go wrapper for [zstd](http://facebook.github.io/zstd/)
 
+
 ## Features
 
   * Vendors upstream [zstd](https://github.com/facebook/zstd) without any modifications.
@@ -15,3 +16,46 @@
     for network apps.
   * Supports [zstd dictionaries](https://github.com/facebook/zstd#the-case-for-small-data-compression)
     for better small data compression.
+
+
+## Quick start
+
+
+### How to install `gozstd`?
+
+```
+go get -u github.com/valyala/gozstd
+```
+
+### How to compress data?
+
+The easiest way is just to use [Compress](https://godoc.org/github.com/valyala/gozstd#Compress):
+
+```go
+	compressedData := Compress(nil, data)
+```
+
+There is also [Writer](https://godoc.org/github.com/valyala/gozstd#Writer)
+for stream compression.
+
+### How to decompress data?
+
+The easiest way is just to use [Decompress](https://godoc.org/github.com/valyala/gozstd#Decompress):
+
+```go
+	data, err := Decompress(nil, compressedData)
+```
+
+There is also [Reader](https://godoc.org/github.com/valyala/gozstd#Reader)
+for stream decompression.
+
+
+## FAQ
+
+  * Q: _Which go version is supported?_
+    A: `go1.10` and newer. Pull requests for older go versions support
+       are accepted.
+
+  * Q: _Which platforms/architectures are supported?_
+    A: `linux/amd64`. Pull requests for other platforms/architectures support
+       are accepted.
