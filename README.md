@@ -7,9 +7,10 @@
 
 ## Features
 
+  * Vendors upstream [zstd](https://github.com/facebook/zstd) without any modifications.
   * [Simple API](https://godoc.org/github.com/valyala/gozstd).
   * Optimized for speed. The API may be easily used in zero allocations mode.
-  * Optimized for high concurrency.
+  * `Compress*` and `Decompress*` functions are optimized for high concurrency.
   * Proper [Writer.Flush](https://godoc.org/github.com/valyala/gozstd#Writer.Flush)
     for network apps.
   * Supports [zstd dictionaries](https://github.com/facebook/zstd#the-case-for-small-data-compression)
