@@ -18,7 +18,7 @@ func ExampleBuildDict() {
 
 	// Now the dict may be used for compression/decompression.
 
-	// Created CDict from the dict.
+	// Create CDict from the dict.
 	cd, err := NewCDict(dict)
 	if err != nil {
 		log.Fatalf("cannot create CDict: %s", err)
