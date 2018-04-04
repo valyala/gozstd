@@ -54,23 +54,11 @@ func TestCompressDecompressDistinctConcurrentDicts(t *testing.T) {
 	ch := make(chan error, len(cdicts))
 	for i := 0; i < cap(ch); i++ {
 		go func(cd *CDict, dd *DDict) {
-			var compressedData, decompressedData []byte
-			for j := 0; j < 10; j++ {
-				compressedData = CompressDict(compressedData[:0], []byte(data), cd)
-
-				var err error
-				decompressedData, err = DecompressDict(decompressedData[:0], compressedData, dd)
-				if err != nil {
-					ch <- fmt.Errorf("cannot decompress data: %s", err)
-					return
-				}
-				if !bytes.Equal(decompressedData, data) {
-					ch <- fmt.Errorf("unexpected decompressed data; got\n%q; want\n%q", decompressedData, data)
-				}
-			}
-			ch <- nil
+			ch <- testCompressDecompressDistinctConcurrentDicts(cd, dd, data)
 		}(cdicts[i], ddicts[i])
 	}
+
+	// Wait for goroutines to finish.
 	for i := 0; i < cap(ch); i++ {
 		select {
 		case err := <-ch:
@@ -81,6 +69,23 @@ func TestCompressDecompressDistinctConcurrentDicts(t *testing.T) {
 			t.Fatalf("timeout")
 		}
 	}
+}
+
+func testCompressDecompressDistinctConcurrentDicts(cd *CDict, dd *DDict, data []byte) error {
+	var compressedData, decompressedData []byte
+	for j := 0; j < 10; j++ {
+		compressedData = CompressDict(compressedData[:0], data, cd)
+
+		var err error
+		decompressedData, err = DecompressDict(decompressedData[:0], compressedData, dd)
+		if err != nil {
+			return fmt.Errorf("cannot decompress data: %s", err)
+		}
+		if !bytes.Equal(decompressedData, data) {
+			return fmt.Errorf("unexpected decompressed data; got\n%q; want\n%q", decompressedData, data)
+		}
+	}
+	return nil
 }
 
 func TestCompressDecompressDict(t *testing.T) {
@@ -142,7 +147,7 @@ func testCompressDecompressDictSerial(cd *CDict, dd *DDict) error {
 		}
 
 		// Try decompressing without dict.
-		plainData, err = Decompress(nil, compressedData)
+		_, err = Decompress(nil, compressedData)
 		if err == nil {
 			return fmt.Errorf("expecting non-nil error when decompressing without dict")
 		}
