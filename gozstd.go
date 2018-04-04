@@ -352,7 +352,7 @@ func streamDecompress(dst, src []byte, dd *DDict) ([]byte, error) {
 	sd := getStreamDecompressor(dd)
 	sd.dst = dst
 	sd.src = src
-	_, err := io.CopyBuffer(sd, sd, sd.copyBuf)
+	_, err := sd.zr.WriteTo(sd)
 	dst = sd.dst
 	putStreamDecompressor(sd)
 	return dst, err
@@ -362,8 +362,6 @@ type streamDecompressor struct {
 	dst       []byte
 	src       []byte
 	srcOffset int
-
-	copyBuf []byte
 
 	zr *Reader
 }
@@ -380,10 +378,6 @@ func (sr *srcReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-func (sd *streamDecompressor) Read(p []byte) (int, error) {
-	return sd.zr.Read(p)
-}
-
 func (sd *streamDecompressor) Write(p []byte) (int, error) {
 	sd.dst = append(sd.dst, p...)
 	return len(p), nil
@@ -393,9 +387,8 @@ func getStreamDecompressor(dd *DDict) *streamDecompressor {
 	v := streamDecompressorPool.Get()
 	if v == nil {
 		sd := &streamDecompressor{
-			copyBuf: make([]byte, 4*1024),
+			zr: NewReader(nil),
 		}
-		sd.zr = NewReader(nil)
 		v = sd
 	}
 	sd := v.(*streamDecompressor)

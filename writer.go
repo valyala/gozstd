@@ -157,6 +157,37 @@ func (zw *Writer) Release() {
 	zw.cd = nil
 }
 
+// ReadFrom reads all the data from r and writes it to zw.
+//
+// Returns the number of bytes read from r.
+//
+// ReadFrom may not flush the compressed data to the underlying writer
+// due to performance reasons.
+// Call Flush or Close when the compressed data must propagate
+// to the underlying writer.
+func (zw *Writer) ReadFrom(r io.Reader) (int64, error) {
+	nn := int64(0)
+	for {
+		// Fill the inBuf.
+		for zw.inBuf.size < cstreamInBufSize {
+			n, err := r.Read(zw.inBufGo[zw.inBuf.size:])
+			if err != nil {
+				if err == io.EOF {
+					return nn, nil
+				}
+				return nn, err
+			}
+			zw.inBuf.size += C.size_t(n)
+			nn += int64(n)
+		}
+
+		// Flush the inBuf.
+		if err := zw.flushInBuf(); err != nil {
+			return nn, err
+		}
+	}
+}
+
 // Write writes p to zw.
 //
 // Write doesn't flush the compressed data to the underlying writer

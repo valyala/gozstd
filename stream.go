@@ -23,7 +23,7 @@ func StreamCompressDict(dst io.Writer, src io.Reader, cd *CDict) error {
 func streamCompressDictLevel(dst io.Writer, src io.Reader, cd *CDict, compressionLevel int) error {
 	sc := getSCompressor(compressionLevel)
 	sc.zw.Reset(dst, cd, compressionLevel)
-	_, err := io.CopyBuffer(sc.zw, src, sc.copyBuf)
+	_, err := sc.zw.ReadFrom(src)
 	if err == nil {
 		err = sc.zw.Close()
 	}
@@ -33,7 +33,6 @@ func streamCompressDictLevel(dst io.Writer, src io.Reader, cd *CDict, compressio
 
 type sCompressor struct {
 	zw               *Writer
-	copyBuf          []byte
 	compressionLevel int
 }
 
@@ -43,7 +42,6 @@ func getSCompressor(compressionLevel int) *sCompressor {
 	if v == nil {
 		return &sCompressor{
 			zw:               NewWriterLevel(nil, compressionLevel),
-			copyBuf:          make([]byte, 4*1024),
 			compressionLevel: compressionLevel,
 		}
 	}
@@ -83,22 +81,20 @@ func StreamDecompress(dst io.Writer, src io.Reader) error {
 func StreamDecompressDict(dst io.Writer, src io.Reader, dd *DDict) error {
 	sd := getSDecompressor()
 	sd.zr.Reset(src, dd)
-	_, err := io.CopyBuffer(dst, sd.zr, sd.copyBuf)
+	_, err := sd.zr.WriteTo(dst)
 	putSDecompressor(sd)
 	return err
 }
 
 type sDecompressor struct {
-	zr      *Reader
-	copyBuf []byte
+	zr *Reader
 }
 
 func getSDecompressor() *sDecompressor {
 	v := sDecompressorPool.Get()
 	if v == nil {
 		return &sDecompressor{
-			zr:      NewReader(nil),
-			copyBuf: make([]byte, 4*1024),
+			zr: NewReader(nil),
 		}
 	}
 	return v.(*sDecompressor)

@@ -133,6 +133,29 @@ func (zr *Reader) Release() {
 	zr.dd = nil
 }
 
+// WriteTo writes all the data from zr to w.
+//
+// It returns the number of bytes written to w.
+func (zr *Reader) WriteTo(w io.Writer) (int64, error) {
+	nn := int64(0)
+	for {
+		if zr.outBuf.pos == zr.outBuf.size {
+			if err := zr.readInBuf(); err != nil {
+				if err == io.EOF {
+					return nn, nil
+				}
+				return nn, err
+			}
+		}
+		n, err := w.Write(zr.outBufGo[zr.outBuf.pos:zr.outBuf.size])
+		zr.outBuf.pos += C.size_t(n)
+		nn += int64(n)
+		if err != nil {
+			return nn, err
+		}
+	}
+}
+
 // Read reads up to len(p) bytes from zr to p.
 func (zr *Reader) Read(p []byte) (int, error) {
 	if len(p) == 0 {

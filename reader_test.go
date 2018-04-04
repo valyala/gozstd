@@ -11,6 +11,26 @@ import (
 	"time"
 )
 
+func TestReaderWriteTo(t *testing.T) {
+	data := newTestString(130*1024, 3)
+	compressedData := Compress(nil, []byte(data))
+	zr := NewReader(bytes.NewReader(compressedData))
+	defer zr.Release()
+
+	var bb bytes.Buffer
+	n, err := zr.WriteTo(&bb)
+	if err != nil {
+		t.Fatalf("cannot write data from zr to bb: %s", err)
+	}
+	if n != int64(bb.Len()) {
+		t.Fatalf("unexpected number of bytes written; got %d; want %d", n, bb.Len())
+	}
+	plainData := bb.Bytes()
+	if string(plainData) != data {
+		t.Fatalf("unexpected data decompressed; got\n%X; want\n%X", plainData, data)
+	}
+}
+
 func TestReaderDict(t *testing.T) {
 	var samples [][]byte
 	for i := 0; i < 1e4; i++ {

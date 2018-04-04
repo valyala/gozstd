@@ -11,6 +11,32 @@ import (
 	"time"
 )
 
+func TestWriterReadFrom(t *testing.T) {
+	var bb bytes.Buffer
+	zw := NewWriter(&bb)
+	defer zw.Release()
+
+	data := newTestString(132*1024, 3)
+	n, err := zw.ReadFrom(bytes.NewBufferString(data))
+	if err != nil {
+		t.Fatalf("cannot read data to zw: %s", err)
+	}
+	if n != int64(len(data)) {
+		t.Fatalf("unexpected number of bytes read; got %d; want %d", n, len(data))
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("cannot close zw: %s", err)
+	}
+
+	plainData, err := Decompress(nil, bb.Bytes())
+	if err != nil {
+		t.Fatalf("cannot decompress data: %s", err)
+	}
+	if string(plainData) != data {
+		t.Fatalf("unexpected data decompressed; got\n%X; want\n%X", plainData, data)
+	}
+}
+
 func TestNewWriterLevel(t *testing.T) {
 	src := []byte(newTestString(512, 3))
 	for level := 0; level < 23; level++ {
