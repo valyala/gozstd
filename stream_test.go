@@ -98,7 +98,7 @@ func testStreamCompressDecompressLevel(t *testing.T, data string, level int) {
 			if err != nil {
 				t.Fatalf("error in concurrent test: %s", err)
 			}
-		case <-time.After(5*time.Second):
+		case <-time.After(5 * time.Second):
 			t.Fatalf("timeout in concurrent test")
 		}
 	}
