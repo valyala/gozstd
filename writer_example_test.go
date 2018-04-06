@@ -34,67 +34,43 @@ func ExampleWriter() {
 
 func ExampleWriter_Flush() {
 
-	// Create in-memory compressed pipe.
-	r, w := io.Pipe()
-	zr := NewReader(r)
-	defer zr.Release()
-	zw := NewWriter(w)
+	var bb bytes.Buffer
+	zw := NewWriter(&bb)
 	defer zw.Release()
 
-	// Start writer goroutine.
-	readerReadyCh := make(chan int)
-	writerDoneCh := make(chan struct{})
-	go func() {
-		for n := range readerReadyCh {
-			fmt.Fprintf(zw, "line %d\n", n)
-
-			// Flush the written line, so it may be read by the reader.
-			if err := zw.Flush(); err != nil {
-				log.Fatalf("unexpected error when flushing data: %s", err)
-			}
-		}
-		if err := zw.Close(); err != nil {
-			log.Fatalf("unexpected error when closing zw: %s", err)
-		}
-		if err := w.Close(); err != nil {
-			log.Fatalf("unexpected error when closing w: %s", err)
-		}
-		close(writerDoneCh)
-	}()
-
-	// Read data from writer goroutine.
-	for i := 0; i < 3; i++ {
-		// Notify the writer we are ready for reading the next line.
-		readerReadyCh <- i
-
-		var n int
-		_, err := fmt.Fscanf(zr, "line %d\n", &n)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			log.Fatalf("unexpected error when reading data: %s", err)
-		}
-		fmt.Println(n)
+	// Write some data to zw.
+	data := []byte("some data\nto compress")
+	if _, err := zw.Write(data); err != nil {
+		log.Fatalf("cannot write data to zw: %s", err)
 	}
 
-	// Notify the writer gorotine it must be finished.
-	close(readerReadyCh)
-
-	// Make sure the writer is closed.
-	buf := make([]byte, 1)
-	n, err := zr.Read(buf)
-	if err != io.EOF {
-		log.Fatalf("unexpected error: got %v; want %v; n=%d", err, io.EOF, n)
+	// Verify the data is cached in zw and isn't propagated to bb.
+	if bb.Len() > 0 {
+		log.Fatalf("%d bytes unexpectedly propagated to bb", bb.Len())
 	}
 
-	// Wait for writer goroutine to finish.
-	<-writerDoneCh
+	// Flush the compressed data to bb.
+	if err := zw.Flush(); err != nil {
+		log.Fatalf("cannot flush compressed data: %s", err)
+	}
+
+	// Verify the compressed data is propagated to bb.
+	if bb.Len() == 0 {
+		log.Fatalf("the compressed data isn't propagated to bb")
+	}
+
+	// Try reading the compressed data with reader.
+	zr := NewReader(&bb)
+	defer zr.Release()
+	buf := make([]byte, len(data))
+	if _, err := io.ReadFull(zr, buf); err != nil {
+		log.Fatalf("cannot read the compressed data: %s", err)
+	}
+	fmt.Printf("%s", buf)
 
 	// Output:
-	// 0
-	// 1
-	// 2
+	// some data
+	// to compress
 }
 
 func ExampleWriter_Reset() {
