@@ -6,16 +6,28 @@ import (
 )
 
 // StreamCompress compresses src into dst.
+//
+// This function doesn't work with interactive network streams, since data read
+// from src may be buffered before passing to dst for performance reasons.
+// Use Writer.Flush for interactive network streams.
 func StreamCompress(dst io.Writer, src io.Reader) error {
 	return streamCompressDictLevel(dst, src, nil, DefaultCompressionLevel)
 }
 
 // StreamCompressLevel compresses src into dst using the given compressionLevel.
+//
+// This function doesn't work with interactive network streams, since data read
+// from src may be buffered before passing to dst for performance reasons.
+// Use Writer.Flush for interactive network streams.
 func StreamCompressLevel(dst io.Writer, src io.Reader, compressionLevel int) error {
 	return streamCompressDictLevel(dst, src, nil, compressionLevel)
 }
 
 // StreamCompressDict compresses src into dst using the given dict cd.
+//
+// This function doesn't work with interactive network streams, since data read
+// from src may be buffered before passing to dst for performance reasons.
+// Use Writer.Flush for interactive network streams.
 func StreamCompressDict(dst io.Writer, src io.Reader, cd *CDict) error {
 	return streamCompressDictLevel(dst, src, cd, 0)
 }
@@ -73,11 +85,19 @@ var (
 )
 
 // StreamDecompress decompresses src into dst.
+//
+// This function doesn't work with interactive network streams, since data read
+// from src may be buffered before passing to dst for performance reasons.
+// Use Reader for interactive network streams.
 func StreamDecompress(dst io.Writer, src io.Reader) error {
 	return StreamDecompressDict(dst, src, nil)
 }
 
 // StreamDecompressDict decompresses src into dst using the given dictionary dd.
+//
+// This function doesn't work with interactive network streams, since data read
+// from src may be buffered before passing to dst for performance reasons.
+// Use Reader for interactive network streams.
 func StreamDecompressDict(dst io.Writer, src io.Reader, dd *DDict) error {
 	sd := getSDecompressor()
 	sd.zr.Reset(src, dd)
