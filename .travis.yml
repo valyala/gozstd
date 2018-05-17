@@ -1,11 +1,15 @@
 language: go
 
+os:
+  - linux
+  - osx
+  
 go:
   - 1.10.x
 
 script:
   # build test for supported platforms
-  - GOOS=linux GOARCH=amd64 go build
+  - GOARCH=amd64 go build
 
   # run tests on a standard platform
   - go test -v -coverprofile=coverage.txt -covermode=atomic
