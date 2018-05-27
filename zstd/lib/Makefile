@@ -159,20 +159,32 @@ libzstd.pc: libzstd.pc.in
              -e 's|@VERSION@|$(VERSION)|' \
              $< >$@
 
-install: libzstd.a libzstd libzstd.pc
-	@$(INSTALL) -d -m 755 $(DESTDIR)$(PKGCONFIGDIR)/ $(DESTDIR)$(INCLUDEDIR)/
+install: install-pc install-static install-shared install-includes
+	@echo zstd static and shared library installed
+
+install-pc: libzstd.pc
+	@$(INSTALL) -d -m 755 $(DESTDIR)$(PKGCONFIGDIR)/
 	@$(INSTALL_DATA) libzstd.pc $(DESTDIR)$(PKGCONFIGDIR)/
-	@echo Installing libraries
+
+install-static: libzstd.a
+	@echo Installing static library
+	@$(INSTALL) -d -m 755 $(DESTDIR)$(LIBDIR)/
 	@$(INSTALL_DATA) libzstd.a $(DESTDIR)$(LIBDIR)
+
+install-shared: libzstd
+	@echo Installing shared library
+	@$(INSTALL) -d -m 755 $(DESTDIR)$(LIBDIR)/
 	@$(INSTALL_PROGRAM) $(LIBZSTD) $(DESTDIR)$(LIBDIR)
 	@ln -sf $(LIBZSTD) $(DESTDIR)$(LIBDIR)/libzstd.$(SHARED_EXT_MAJOR)
 	@ln -sf $(LIBZSTD) $(DESTDIR)$(LIBDIR)/libzstd.$(SHARED_EXT)
+
+install-includes:
 	@echo Installing includes
+	@$(INSTALL) -d -m 755 $(DESTDIR)$(INCLUDEDIR)/
 	@$(INSTALL_DATA) zstd.h $(DESTDIR)$(INCLUDEDIR)
 	@$(INSTALL_DATA) common/zstd_errors.h $(DESTDIR)$(INCLUDEDIR)
 	@$(INSTALL_DATA) deprecated/zbuff.h $(DESTDIR)$(INCLUDEDIR)     # prototypes generate deprecation warnings
 	@$(INSTALL_DATA) dictBuilder/zdict.h $(DESTDIR)$(INCLUDEDIR)
-	@echo zstd static and shared library installed
 
 uninstall:
 	@$(RM) $(DESTDIR)$(LIBDIR)/libzstd.a
