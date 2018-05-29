@@ -57,5 +57,5 @@ and [Reader](https://godoc.org/github.com/valyala/gozstd#Reader) for stream deco
        are accepted.
 
   * Q: _Which platforms/architectures are supported?_
-    A: `linux/amd64`. Pull requests for other platforms/architectures support
+    A: `linux/amd64`,`darwin/amd64`,`windows/amd64`. Pull requests for other platforms/architectures support
        are accepted.

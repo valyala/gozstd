@@ -2,7 +2,6 @@ package gozstd
 
 /*
 #cgo CFLAGS: -O3 -I${SRCDIR}/zstd/lib
-#cgo LDFLAGS: ${SRCDIR}/libzstd.a
 
 #define ZSTD_STATIC_LINKING_ONLY
 #include "zstd.h"
