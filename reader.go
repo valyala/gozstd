@@ -12,7 +12,6 @@ import "C"
 import (
 	"fmt"
 	"io"
-	"reflect"
 	"runtime"
 	"unsafe"
 )
@@ -51,12 +50,10 @@ func NewReaderDict(r io.Reader, dd *DDict) *Reader {
 	initDStream(ds, dd)
 
 	inBuf := (*C.ZSTD_inBuffer)(C.malloc(C.sizeof_ZSTD_inBuffer))
-	inBuf.src = C.malloc(dstreamInBufSize)
 	inBuf.size = 0
 	inBuf.pos = 0
 
 	outBuf := (*C.ZSTD_outBuffer)(C.malloc(C.sizeof_ZSTD_outBuffer))
-	outBuf.dst = C.malloc(dstreamOutBufSize)
 	outBuf.size = 0
 	outBuf.pos = 0
 
@@ -66,18 +63,13 @@ func NewReaderDict(r io.Reader, dd *DDict) *Reader {
 		dd:     dd,
 		inBuf:  inBuf,
 		outBuf: outBuf,
+
+		inBufGo:  make([]byte, dstreamInBufSize),
+		outBufGo: make([]byte, dstreamOutBufSize),
 	}
 
-	zr.inBufGo = *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-		Data: uintptr(inBuf.src),
-		Len:  int(dstreamInBufSize),
-		Cap:  int(dstreamInBufSize),
-	}))
-	zr.outBufGo = *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-		Data: uintptr(outBuf.dst),
-		Len:  int(dstreamOutBufSize),
-		Cap:  int(dstreamOutBufSize),
-	}))
+	zr.inBuf.src = unsafe.Pointer(&zr.inBufGo[0])
+	zr.outBuf.dst = unsafe.Pointer(&zr.outBufGo[0])
 
 	runtime.SetFinalizer(zr, freeDStream)
 	return zr
@@ -121,11 +113,9 @@ func (zr *Reader) Release() {
 	ensureNoError("ZSTD_freeDStream", result)
 	zr.ds = nil
 
-	C.free(zr.inBuf.src)
 	C.free(unsafe.Pointer(zr.inBuf))
 	zr.inBuf = nil
 
-	C.free(zr.outBuf.dst)
 	C.free(unsafe.Pointer(zr.outBuf))
 	zr.outBuf = nil
 

@@ -11,7 +11,6 @@ import "C"
 import (
 	"fmt"
 	"io"
-	"reflect"
 	"runtime"
 	"unsafe"
 )
@@ -88,18 +87,13 @@ func newWriterDictLevel(w io.Writer, cd *CDict, compressionLevel int) *Writer {
 		cd:               cd,
 		inBuf:            inBuf,
 		outBuf:           outBuf,
+
+		inBufGo:  make([]byte, cstreamInBufSize),
+		outBufGo: make([]byte, cstreamOutBufSize),
 	}
 
-	zw.inBufGo = *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-		Data: uintptr(inBuf.src),
-		Len:  int(cstreamInBufSize),
-		Cap:  int(cstreamInBufSize),
-	}))
-	zw.outBufGo = *(*[]byte)(unsafe.Pointer(&reflect.SliceHeader{
-		Data: uintptr(outBuf.dst),
-		Len:  int(cstreamOutBufSize),
-		Cap:  int(cstreamOutBufSize),
-	}))
+	zw.inBuf.src = unsafe.Pointer(&zw.inBufGo[0])
+	zw.outBuf.dst = unsafe.Pointer(&zw.outBufGo[0])
 
 	runtime.SetFinalizer(zw, freeCStream)
 	return zw
@@ -145,11 +139,9 @@ func (zw *Writer) Release() {
 	ensureNoError("ZSTD_freeCStream", result)
 	zw.cs = nil
 
-	C.free(zw.inBuf.src)
 	C.free(unsafe.Pointer(zw.inBuf))
 	zw.inBuf = nil
 
-	C.free(zw.outBuf.dst)
 	C.free(unsafe.Pointer(zw.outBuf))
 	zw.outBuf = nil
 
