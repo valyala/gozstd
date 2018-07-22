@@ -325,3 +325,66 @@ func testWriterExt(zw *Writer, s string) error {
 	}
 	return nil
 }
+
+func TestWriterBigWithFlush(t *testing.T) {
+	pr, pw := io.Pipe()
+	zw := NewWriter(pw)
+	zr := NewReader(pr)
+
+	doneCh := make(chan error)
+	var writtenBB bytes.Buffer
+	go func() {
+		for writtenBB.Len() < 2e6 {
+			blockSize := 0
+			for blockSize < 1e2+rand.Intn(1e2) {
+				s := newTestString(rand.Intn(100), 10)
+				n, err := zw.Write([]byte(s))
+				if err != nil {
+					doneCh <- err
+					return
+				}
+				if n != len(s) {
+					doneCh <- fmt.Errorf("invalid number of bytes written: got %d; want %d", n, len(s))
+					return
+				}
+				writtenBB.WriteString(s)
+				blockSize += n
+			}
+			if err := zw.Flush(); err != nil {
+				doneCh <- fmt.Errorf("cannot flush written data: %s", err)
+				return
+			}
+		}
+		pw.Close()
+		doneCh <- nil
+	}()
+
+	var readBB bytes.Buffer
+	buf := make([]byte, 12345)
+	for {
+		n, err := zr.Read(buf)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			t.Fatalf("cannot read data: %s", err)
+		}
+		readBB.Write(buf[:n])
+	}
+
+	select {
+	case err := <-doneCh:
+		if err != nil {
+			t.Fatalf("unexpected error in writer: %s", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timeout")
+	}
+
+	if writtenBB.Len() != readBB.Len() {
+		t.Fatalf("non-equal lens for writtenBB and readBB: %d vs %d", writtenBB.Len(), readBB.Len())
+	}
+	if !bytes.Equal(writtenBB.Bytes(), readBB.Bytes()) {
+		t.Fatalf("unequal writtenBB and readBB\nwrittenBB=\n%X\nreadBB=\n%X", writtenBB.Bytes(), readBB.Bytes())
+	}
+}
