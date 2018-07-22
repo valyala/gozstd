@@ -27,6 +27,7 @@
 extern "C" {
 #endif
 
+
 /*-*************************************
 *  Constants
 ***************************************/
@@ -37,7 +38,8 @@ extern "C" {
                                        It's not a big deal though : candidate will just be sorted again.
                                        Additionnally, candidate position 1 will be lost.
                                        But candidate 1 cannot hide a large tree of candidates, so it's a minimal loss.
-                                       The benefit is that ZSTD_DUBT_UNSORTED_MARK cannot be misdhandled after table re-use with a different strategy */
+                                       The benefit is that ZSTD_DUBT_UNSORTED_MARK cannot be misdhandled after table re-use with a different strategy
+                                       Constant required by ZSTD_compressBlock_btlazy2() and ZSTD_reduceTable_internal() */
 
 
 /*-*************************************
@@ -45,6 +47,12 @@ extern "C" {
 ***************************************/
 typedef enum { ZSTDcs_created=0, ZSTDcs_init, ZSTDcs_ongoing, ZSTDcs_ending } ZSTD_compressionStage_e;
 typedef enum { zcss_init=0, zcss_load, zcss_flush } ZSTD_cStreamStage;
+
+typedef enum {
+    ZSTD_dictDefaultAttach = 0,
+    ZSTD_dictForceAttach = 1,
+    ZSTD_dictForceCopy = -1,
+} ZSTD_dictAttachPref_e;
 
 typedef struct ZSTD_prefixDict_s {
     const void* dict;
@@ -181,9 +189,10 @@ struct ZSTD_CCtx_params_s {
     ZSTD_frameParameters fParams;
 
     int compressionLevel;
-    int disableLiteralCompression;
     int forceWindow;           /* force back-references to respect limit of
                                 * 1<<wLog, even for dictionary */
+
+    ZSTD_dictAttachPref_e attachDictPref;
 
     /* Multithreading: used to pass parameters to mtctx */
     unsigned nbWorkers;
@@ -204,6 +213,8 @@ struct ZSTD_CCtx_s {
     ZSTD_CCtx_params requestedParams;
     ZSTD_CCtx_params appliedParams;
     U32   dictID;
+
+    int workSpaceOversizedDuration;
     void* workSpace;
     size_t workSpaceSize;
     size_t blockSize;
@@ -295,11 +306,11 @@ MEM_STATIC U32 ZSTD_MLcode(U32 mlBase)
 */
 MEM_STATIC void ZSTD_storeSeq(seqStore_t* seqStorePtr, size_t litLength, const void* literals, U32 offsetCode, size_t mlBase)
 {
-#if defined(ZSTD_DEBUG) && (ZSTD_DEBUG >= 6)
+#if defined(DEBUGLEVEL) && (DEBUGLEVEL >= 6)
     static const BYTE* g_start = NULL;
     if (g_start==NULL) g_start = (const BYTE*)literals;  /* note : index only works for compression within a single segment */
     {   U32 const pos = (U32)((const BYTE*)literals - g_start);
-        DEBUGLOG(6, "Cpos%7u :%3u literals, match%3u bytes at dist.code%7u",
+        DEBUGLOG(6, "Cpos%7u :%3u literals, match%4u bytes at offCode%7u",
                pos, (U32)litLength, (U32)mlBase+MINMATCH, (U32)offsetCode);
     }
 #endif
@@ -435,6 +446,11 @@ ZSTD_count_2segments(const BYTE* ip, const BYTE* match,
     const BYTE* const vEnd = MIN( ip + (mEnd - match), iEnd);
     size_t const matchLength = ZSTD_count(ip, match, vEnd);
     if (match + matchLength != mEnd) return matchLength;
+    DEBUGLOG(7, "ZSTD_count_2segments: found a 2-parts match (current length==%zu)", matchLength);
+    DEBUGLOG(7, "distance from match beginning to end dictionary = %zi", mEnd - match);
+    DEBUGLOG(7, "distance from current pos to end buffer = %zi", iEnd - ip);
+    DEBUGLOG(7, "next byte : ip==%02X, istart==%02X", ip[matchLength], *iStart);
+    DEBUGLOG(7, "final match length = %zu", matchLength + ZSTD_count(ip+matchLength, iStart, iEnd));
     return matchLength + ZSTD_count(ip+matchLength, iStart, iEnd);
 }
 

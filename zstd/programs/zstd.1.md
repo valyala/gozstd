@@ -164,7 +164,8 @@ the last one takes effect.
 * `--format=FORMAT`:
     compress and decompress in other formats. If compiled with
     support, zstd can compress to or decompress from other compression algorithm
-    formats. Possibly available options are `gzip`, `xz`, `lzma`, and `lz4`.
+    formats. Possibly available options are `zstd`, `gzip`, `xz`, `lzma`, and `lz4`.
+    If no such format is provided, `zstd` is the default.
 * `-h`/`-H`, `--help`:
     display help/long help and exit
 * `-V`, `--version`:
@@ -222,11 +223,12 @@ Compression of small files similar to the sample set will be greatly improved.
     This compares favorably to 4 bytes default.
     However, it's up to the dictionary manager to not assign twice the same ID to
     2 different dictionaries.
-* `--train-cover[=k#,d=#,steps=#]`:
+* `--train-cover[=k#,d=#,steps=#,split=#]`:
     Select parameters for the default dictionary builder algorithm named cover.
     If _d_ is not specified, then it tries _d_ = 6 and _d_ = 8.
     If _k_ is not specified, then it tries _steps_ values in the range [50, 2000].
     If _steps_ is not specified, then the default value of 40 is used.
+    If _split_ is not specified or split <= 0, then the default value of 100 is used.
     Requires that _d_ <= _k_.
 
     Selects segments of size _k_ with highest score to put in the dictionary.
@@ -236,6 +238,8 @@ Compression of small files similar to the sample set will be greatly improved.
     algorithm will run faster with d <= _8_.
     Good values for _k_ vary widely based on the input data, but a safe range is
     [2 * _d_, 2000].
+    If _split_ is 100, all input samples are used for both training and testing
+    to find optimal _d_ and _k_ to build dictionary.
     Supports multithreading if `zstd` is compiled with threading support.
 
     Examples:
@@ -247,6 +251,8 @@ Compression of small files similar to the sample set will be greatly improved.
     `zstd --train-cover=d=8,steps=500 FILEs`
 
     `zstd --train-cover=k=50 FILEs`
+
+    `zstd --train-cover=k=50,split=60 FILEs`
 
 * `--train-legacy[=selectivity=#]`:
     Use legacy dictionary builder algorithm with the given dictionary
@@ -354,14 +360,14 @@ The list of available _options_:
     A larger `targetLen` usually improves compression ratio
     but decreases compression speed.
 
-    For ZSTD\_fast, it specifies
-    the amount of data skipped between match sampling.
+    For ZSTD\_fast, it triggers ultra-fast mode when > 0.
+    The value represents the amount of data skipped between match sampling.
     Impact is reversed : a larger `targetLen` increases compression speed
     but decreases compression ratio.
 
     For all other strategies, this field has no impact.
 
-    The minimum _tlen_ is 1 and the maximum is 999.
+    The minimum _tlen_ is 0 and the maximum is 999.
 
 - `overlapLog`=_ovlog_,  `ovlog`=_ovlog_:
     Determine `overlapSize`, amount of data reloaded from previous job.

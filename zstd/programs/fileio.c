@@ -36,6 +36,7 @@
 #  include <io.h>
 #endif
 
+#include "debug.h"
 #include "mem.h"
 #include "fileio.h"
 #include "util.h"
@@ -101,21 +102,6 @@ static UTIL_time_t g_displayClock = UTIL_TIME_INITIALIZER;
 #define MIN(a,b)    ((a) < (b) ? (a) : (b))
 
 
-/*-*************************************
-*  Debug
-***************************************/
-#if defined(ZSTD_DEBUG) && (ZSTD_DEBUG>=1)
-#  include <assert.h>
-#else
-#  ifndef assert
-#    define assert(condition) ((void)0)
-#  endif
-#endif
-
-#ifndef ZSTD_DEBUG
-#  define ZSTD_DEBUG 0
-#endif
-#define DEBUGLOG(l,...) if (l<=ZSTD_DEBUG) DISPLAY(__VA_ARGS__);
 #define EXM_THROW(error, ...)                                             \
 {                                                                         \
     DISPLAYLEVEL(1, "zstd: ");                                            \
@@ -172,7 +158,7 @@ static void clearHandler(void)
 
 
 /* ************************************************************
-* Avoid fseek()'s 2GiB barrier with MSVC, MacOS, *BSD, MinGW
+* Avoid fseek()'s 2GiB barrier with MSVC, macOS, *BSD, MinGW
 ***************************************************************/
 #if defined(_MSC_VER) && _MSC_VER >= 1400
 #   define LONG_SEEK _fseeki64
@@ -759,8 +745,9 @@ FIO_compressZstdFrame(const cRess_t* ressPtr,
     DISPLAYLEVEL(6, "compression using zstd format \n");
 
     /* init */
-    if (fileSize != UTIL_FILESIZE_UNKNOWN)
-        ZSTD_CCtx_setPledgedSrcSize(ress.cctx, fileSize);
+    if (fileSize != UTIL_FILESIZE_UNKNOWN) {
+        CHECK(ZSTD_CCtx_setPledgedSrcSize(ress.cctx, fileSize));
+    }
     (void)compressionLevel; (void)srcFileName;
 
     /* Main compression loop */
@@ -809,6 +796,14 @@ FIO_compressZstdFrame(const cRess_t* ressPtr,
             }
         }
     } while (directive != ZSTD_e_end);
+
+    if (ferror(srcFile)) {
+        EXM_THROW(26, "Read error : I/O error");
+    }
+    if (fileSize != UTIL_FILESIZE_UNKNOWN && *readsize != fileSize) {
+        EXM_THROW(27, "Read error : Incomplete read : %llu / %llu B",
+                (unsigned long long)*readsize, (unsigned long long)fileSize);
+    }
 
     return compressedfilesize;
 }
@@ -1754,8 +1749,19 @@ int FIO_decompressMultipleFilenames(const char** srcNamesTable, unsigned nbFiles
                     && strcmp(suffixPtr, ZSTD_EXTENSION)
                     && strcmp(suffixPtr, LZMA_EXTENSION)
                     && strcmp(suffixPtr, LZ4_EXTENSION)) ) {
-                DISPLAYLEVEL(1, "zstd: %s: unknown suffix (%s/%s/%s/%s/%s expected) -- ignored \n",
-                             srcFileName, GZ_EXTENSION, XZ_EXTENSION, ZSTD_EXTENSION, LZMA_EXTENSION, LZ4_EXTENSION);
+                const char* suffixlist = ZSTD_EXTENSION
+                #ifdef ZSTD_GZCOMPRESS
+                    "/" GZ_EXTENSION
+                #endif
+                #ifdef ZSTD_LZMACOMPRESS
+                    "/" XZ_EXTENSION "/" LZMA_EXTENSION
+                #endif
+                #ifdef ZSTD_LZ4COMPRESS
+                    "/" LZ4_EXTENSION
+                #endif
+                ;
+                DISPLAYLEVEL(1, "zstd: %s: unknown suffix (%s expected) -- ignored \n",
+                             srcFileName, suffixlist);
                 skippedFiles++;
                 continue;
             } else {
@@ -2019,15 +2025,25 @@ static int FIO_listFile(fileInfo_t* total, const char* inFileName, int displayLe
 }
 
 int FIO_listMultipleFiles(unsigned numFiles, const char** filenameTable, int displayLevel){
+    unsigned u;
+    for (u=0; u<numFiles;u++) {
+        if (!strcmp (filenameTable[u], stdinmark)) {
+            DISPLAYOUT("zstd: --list does not support reading from standard input\n");
+            return 1;
+        }
+    }
+
     if (numFiles == 0) {
+        if (!IS_CONSOLE(stdin)) {
+            DISPLAYOUT("zstd: --list does not support reading from standard input\n");
+        }
         DISPLAYOUT("No files given\n");
-        return 0;
+        return 1;
     }
     if (displayLevel <= 2) {
         DISPLAYOUT("Frames  Skips  Compressed  Uncompressed  Ratio  Check  Filename\n");
     }
     {   int error = 0;
-        unsigned u;
         fileInfo_t total;
         memset(&total, 0, sizeof(total));
         total.usesCheck = 1;

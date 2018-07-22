@@ -28,10 +28,44 @@ DEBUGFLAGS = -Wall -Wextra -Wcast-qual -Wcast-align -Wshadow \
 CFLAGS  += $(DEBUGFLAGS) $(MOREFLAGS)
 FLAGS    = $(CPPFLAGS) $(CFLAGS)
 
-
-ZSTD_FILES := $(sort $(wildcard common/*.c compress/*.c decompress/*.c dictBuilder/*.c deprecated/*.c))
+ZSTDCOMMON_FILES := $(sort $(wildcard common/*.c))
+ZSTDCOMP_FILES := $(sort $(wildcard compress/*.c))
+ZSTDDECOMP_FILES := $(sort $(wildcard decompress/*.c))
+ZDICT_FILES := $(sort $(wildcard dictBuilder/*.c))
+ZDEPR_FILES := $(sort $(wildcard deprecated/*.c))
+ZSTD_FILES := $(ZSTDCOMMON_FILES)
 
 ZSTD_LEGACY_SUPPORT ?= 4
+ZSTD_LIB_COMPRESSION ?= 1
+ZSTD_LIB_DECOMPRESSION ?= 1
+ZSTD_LIB_DICTBUILDER ?= 1
+ZSTD_LIB_DEPRECATED ?= 1
+
+ifeq ($(ZSTD_LIB_COMPRESSION), 0)
+	ZSTD_LIB_DICTBUILDER = 0
+	ZSTD_LIB_DEPRECATED = 0
+endif
+
+ifeq ($(ZSTD_LIB_DECOMPRESSION), 0)
+	ZSTD_LEGACY_SUPPORT = 0
+	ZSTD_LIB_DEPRECATED = 0
+endif
+
+ifneq ($(ZSTD_LIB_COMPRESSION), 0)
+	ZSTD_FILES += $(ZSTDCOMP_FILES) 
+endif
+
+ifneq ($(ZSTD_LIB_DECOMPRESSION), 0)
+	ZSTD_FILES += $(ZSTDDECOMP_FILES) 
+endif
+
+ifneq ($(ZSTD_LIB_DEPRECATED), 0)
+	ZSTD_FILES += $(ZDEPR_FILES)
+endif
+
+ifneq ($(ZSTD_LIB_DICTBUILDER), 0)
+	ZSTD_FILES += $(ZDICT_FILES)
+endif
 
 ifneq ($(ZSTD_LEGACY_SUPPORT), 0)
 ifeq ($(shell test $(ZSTD_LEGACY_SUPPORT) -lt 8; echo $$?), 0)
@@ -43,7 +77,7 @@ CPPFLAGS  += -DZSTD_LEGACY_SUPPORT=$(ZSTD_LEGACY_SUPPORT)
 
 ZSTD_OBJ   := $(patsubst %.c,%.o,$(ZSTD_FILES))
 
-# OS X linker doesn't support -soname, and use different extension
+# macOS linker doesn't support -soname, and use different extension
 # see : https://developer.apple.com/library/mac/documentation/DeveloperTools/Conceptual/DynamicLibraries/100-Articles/DynamicLibraryDesignGuidelines.html
 ifeq ($(shell uname), Darwin)
 	SHARED_EXT = dylib
@@ -111,14 +145,14 @@ libzstd-nomt: $(ZSTD_NOMT_FILES)
 	@$(CC) $(FLAGS) $^ $(LDFLAGS) $(SONAME_FLAGS) -o $@
 
 clean:
-	@$(RM) -r *.dSYM   # Mac OS-X specific
+	@$(RM) -r *.dSYM   # macOS-specific
 	@$(RM) core *.o *.a *.gcda *.$(SHARED_EXT) *.$(SHARED_EXT).* libzstd.pc
 	@$(RM) dll/libzstd.dll dll/libzstd.lib libzstd-nomt*
 	@$(RM) common/*.o compress/*.o decompress/*.o dictBuilder/*.o legacy/*.o deprecated/*.o
 	@echo Cleaning library completed
 
 #-----------------------------------------------------------------------------
-# make install is validated only for Linux, OSX, BSD, Hurd and Solaris targets
+# make install is validated only for Linux, macOS, BSD, Hurd and Solaris targets
 #-----------------------------------------------------------------------------
 ifneq (,$(filter $(shell uname),Linux Darwin GNU/kFreeBSD GNU OpenBSD FreeBSD NetBSD DragonFly SunOS))
 

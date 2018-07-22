@@ -66,6 +66,9 @@ static UTIL_time_t g_displayClock = UTIL_TIME_INITIALIZER;
             if (g_displayLevel>=4) fflush(stderr); } }
 
 
+/*-*******************************************************
+*  Compile time test
+*********************************************************/
 #undef MIN
 #undef MAX
 void FUZ_bug976(void)
@@ -73,6 +76,7 @@ void FUZ_bug976(void)
     assert(ZSTD_HASHLOG_MAX < 31);
     assert(ZSTD_CHAINLOG_MAX < 31);
 }
+
 
 /*-*******************************************************
 *  Internal functions
@@ -450,18 +454,54 @@ static int basicUnitTests(U32 seed, double compressibility)
     }
     DISPLAYLEVEL(3, "OK \n");
 
-    DISPLAYLEVEL(3, "test%3d : large window log smaller data : ", testNb++);
+    /* this test is really too long, and should be made faster */
+    DISPLAYLEVEL(3, "test%3d : overflow protection with large windowLog : ", testNb++);
     {   ZSTD_CCtx* const cctx = ZSTD_createCCtx();
-        ZSTD_parameters params = ZSTD_getParams(1, ZSTD_CONTENTSIZE_UNKNOWN, 0);
-        size_t const nbCompressions = (1U << 31) / CNBuffSize + 1;
-        size_t i;
+        ZSTD_parameters params = ZSTD_getParams(-9, ZSTD_CONTENTSIZE_UNKNOWN, 0);
+        size_t const nbCompressions = ((1U << 31) / CNBuffSize) + 1;   /* ensure U32 overflow protection is triggered */
+        size_t cnb;
+        assert(cctx != NULL);
         params.fParams.contentSizeFlag = 0;
         params.cParams.windowLog = ZSTD_WINDOWLOG_MAX;
-        for (i = 0; i < nbCompressions; ++i) {
+        for (cnb = 0; cnb < nbCompressions; ++cnb) {
+            DISPLAYLEVEL(6, "run %zu / %zu \n", cnb, nbCompressions);
             CHECK_Z( ZSTD_compressBegin_advanced(cctx, NULL, 0, params, ZSTD_CONTENTSIZE_UNKNOWN) );  /* re-use same parameters */
             CHECK_Z( ZSTD_compressEnd(cctx, compressedBuffer, compressedBufferSize, CNBuffer, CNBuffSize) );
         }
         ZSTD_freeCCtx(cctx);
+    }
+    DISPLAYLEVEL(3, "OK \n");
+
+    DISPLAYLEVEL(3, "test%3d : size down context : ", testNb++);
+    {   ZSTD_CCtx* const largeCCtx = ZSTD_createCCtx();
+        assert(largeCCtx != NULL);
+        CHECK_Z( ZSTD_compressBegin(largeCCtx, 19) );   /* streaming implies ZSTD_CONTENTSIZE_UNKNOWN, which maximizes memory usage */
+        CHECK_Z( ZSTD_compressEnd(largeCCtx, compressedBuffer, compressedBufferSize, CNBuffer, 1) );
+        {   size_t const largeCCtxSize = ZSTD_sizeof_CCtx(largeCCtx);   /* size of context must be measured after compression */
+            {   ZSTD_CCtx* const smallCCtx = ZSTD_createCCtx();
+                assert(smallCCtx != NULL);
+                CHECK_Z(ZSTD_compressCCtx(smallCCtx, compressedBuffer, compressedBufferSize, CNBuffer, 1, 1));
+                {   size_t const smallCCtxSize = ZSTD_sizeof_CCtx(smallCCtx);
+                    DISPLAYLEVEL(5, "(large) %zuKB > 32*%zuKB (small) : ",
+                                largeCCtxSize>>10, smallCCtxSize>>10);
+                    assert(largeCCtxSize > 32* smallCCtxSize);  /* note : "too large" definition is handled within zstd_compress.c .
+                                                                 * make this test case extreme, so that it doesn't depend on a possibly fluctuating definition */
+                }
+                ZSTD_freeCCtx(smallCCtx);
+            }
+            {   U32 const maxNbAttempts = 1100;   /* nb of usages before triggering size down is handled within zstd_compress.c.
+                                                   * currently defined as 128x, but could be adjusted in the future.
+                                                   * make this test long enough so that it's not too much tied to the current definition within zstd_compress.c */
+                U32 u;
+                for (u=0; u<maxNbAttempts; u++) {
+                    CHECK_Z(ZSTD_compressCCtx(largeCCtx, compressedBuffer, compressedBufferSize, CNBuffer, 1, 1));
+                    if (ZSTD_sizeof_CCtx(largeCCtx) < largeCCtxSize) break;   /* sized down */
+                }
+                DISPLAYLEVEL(5, "size down after %u attempts : ", u);
+                if (u==maxNbAttempts) goto _output_error;   /* no sizedown happened */
+            }
+        }
+        ZSTD_freeCCtx(largeCCtx);
     }
     DISPLAYLEVEL(3, "OK \n");
 
@@ -1080,12 +1120,40 @@ static int basicUnitTests(U32 seed, double compressibility)
         ZSTD_freeCCtx(cctx);
     }
 
+    /* negative compression level test : ensure simple API and advanced API produce same result */
+    DISPLAYLEVEL(3, "test%3i : negative compression level : ", testNb++);
+    {   ZSTD_CCtx* const cctx = ZSTD_createCCtx();
+        size_t const srcSize = CNBuffSize / 5;
+        int const compressionLevel = -1;
+
+        assert(cctx != NULL);
+        {   ZSTD_parameters const params = ZSTD_getParams(compressionLevel, srcSize, 0);
+            size_t const cSize_1pass = ZSTD_compress_advanced(cctx,
+                                        compressedBuffer, compressedBufferSize,
+                                        CNBuffer, srcSize,
+                                        NULL, 0,
+                                        params);
+            if (ZSTD_isError(cSize_1pass)) goto _output_error;
+
+            CHECK( ZSTD_CCtx_setParameter(cctx, ZSTD_p_compressionLevel, (unsigned)compressionLevel) );
+            {   ZSTD_inBuffer in = { CNBuffer, srcSize, 0 };
+                ZSTD_outBuffer out = { compressedBuffer, compressedBufferSize, 0 };
+                size_t const compressionResult = ZSTD_compress_generic(cctx, &out, &in, ZSTD_e_end);
+                DISPLAYLEVEL(5, "simple=%zu vs %zu=advanced : ", cSize_1pass, out.pos);
+                if (ZSTD_isError(compressionResult)) goto _output_error;
+                if (out.pos != cSize_1pass) goto _output_error;
+        }   }
+        ZSTD_freeCCtx(cctx);
+    }
+    DISPLAYLEVEL(3, "OK \n");
+
     /* parameters order test */
     {   size_t const inputSize = CNBuffSize / 2;
         U64 xxh64;
 
-        {   ZSTD_CCtx* cctx = ZSTD_createCCtx();
+        {   ZSTD_CCtx* const cctx = ZSTD_createCCtx();
             DISPLAYLEVEL(3, "test%3i : parameters in order : ", testNb++);
+            assert(cctx != NULL);
             CHECK( ZSTD_CCtx_setParameter(cctx, ZSTD_p_compressionLevel, 2) );
             CHECK( ZSTD_CCtx_setParameter(cctx, ZSTD_p_enableLongDistanceMatching, 1) );
             CHECK( ZSTD_CCtx_setParameter(cctx, ZSTD_p_windowLog, 18) );
