@@ -216,7 +216,7 @@ func (zw *Writer) flushInBuf() error {
 	zw.inBuf.size -= zw.inBuf.pos
 	zw.inBuf.pos = 0
 
-	if zw.outBuf.size - zw.outBuf.pos > zw.outBuf.pos && prevInBufPos != zw.inBuf.pos {
+	if zw.outBuf.size-zw.outBuf.pos > zw.outBuf.pos && prevInBufPos != zw.inBuf.pos {
 		// There is enough space in outBuf and the last compression
 		// succeeded, so don't flush outBuf yet.
 		return nil
