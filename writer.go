@@ -207,22 +207,32 @@ func (zw *Writer) Write(p []byte) (int, error) {
 }
 
 func (zw *Writer) flushInBuf() error {
+	prevInBufPos := zw.inBuf.pos
 	result := C.ZSTD_compressStream(zw.cs, zw.outBuf, zw.inBuf)
 	ensureNoError("ZSTD_compressStream", result)
 
-	// Adjust inBuf.
+	// Move the remaining data to the start of inBuf.
 	copy(zw.inBufGo, zw.inBufGo[zw.inBuf.pos:zw.inBuf.size])
 	zw.inBuf.size -= zw.inBuf.pos
 	zw.inBuf.pos = 0
 
-	// Flush outBuf.
+	if zw.outBuf.size - zw.outBuf.pos > zw.outBuf.pos && prevInBufPos != zw.inBuf.pos {
+		// There is enough space in outBuf and the last compression
+		// succeeded, so don't flush outBuf yet.
+		return nil
+	}
+
+	// Flush outBuf, since there is low space in it or the last compression
+	// attempt was unsuccessful.
 	return zw.flushOutBuf()
 }
 
 func (zw *Writer) flushOutBuf() error {
 	if zw.outBuf.pos == 0 {
+		// Nothing to flush.
 		return nil
 	}
+
 	outBuf := zw.outBufGo[:zw.outBuf.pos]
 	n, err := zw.w.Write(outBuf)
 	zw.outBuf.pos = 0
