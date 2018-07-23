@@ -130,7 +130,7 @@ func (zr *Reader) WriteTo(w io.Writer) (int64, error) {
 	nn := int64(0)
 	for {
 		if zr.outBuf.pos == zr.outBuf.size {
-			if err := zr.readInBuf(); err != nil {
+			if err := zr.fillOutBuf(); err != nil {
 				if err == io.EOF {
 					return nn, nil
 				}
@@ -152,8 +152,8 @@ func (zr *Reader) Read(p []byte) (int, error) {
 		return 0, nil
 	}
 
-	for zr.outBuf.pos == zr.outBuf.size {
-		if err := zr.readInBuf(); err != nil {
+	if zr.outBuf.pos == zr.outBuf.size {
+		if err := zr.fillOutBuf(); err != nil {
 			return 0, err
 		}
 	}
@@ -163,37 +163,70 @@ func (zr *Reader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-func (zr *Reader) readInBuf() error {
-	if zr.inBuf.size == 0 {
-		// Read inBuf.
-		n, err := zr.r.Read(zr.inBufGo)
-		zr.inBuf.size = C.size_t(n)
-		zr.inBuf.pos = 0
-		if err != nil {
-			if err != io.EOF {
-				return fmt.Errorf("cannot read data from the underlying reader: %s", err)
-			}
-			if n == 0 {
-				return io.EOF
-			}
+func (zr *Reader) fillOutBuf() error {
+	if zr.inBuf.pos == zr.inBuf.size {
+		// inBuf is empty. Read more data into it.
+		if err := zr.fillInBuf(); err != nil {
+			return err
 		}
 	}
 
-	// Decompress inBuf.
+tryDecompressAgain:
+	// Try decompressing inBuf into outBuf.
 	zr.outBuf.size = dstreamOutBufSize
 	zr.outBuf.pos = 0
+	prevInBufPos := zr.inBuf.pos
 	result := C.ZSTD_decompressStream(zr.ds, zr.outBuf, zr.inBuf)
 	zr.outBuf.size = zr.outBuf.pos
 	zr.outBuf.pos = 0
-
-	// Adjust inBuf.
-	copy(zr.inBufGo, zr.inBufGo[zr.inBuf.pos:zr.inBuf.size])
-	zr.inBuf.size -= zr.inBuf.pos
-	zr.inBuf.pos = 0
 
 	if C.ZSTD_getErrorCode(result) != 0 {
 		return fmt.Errorf("cannot decompress data: %s", errStr(result))
 	}
 
+	if zr.outBuf.size > 0 {
+		// Something has been decompressed to outBuf. Return it.
+		return nil
+	}
+
+	// Nothing has been decompressed from non-empty inBuf.
+	if zr.inBuf.pos != prevInBufPos && zr.inBuf.pos != zr.inBuf.size {
+		// Data has been consumed from inBuf, but decompressed
+		// into nothing. Try decompressing again.
+		goto tryDecompressAgain
+	}
+
+	// Either nothing has been consumed from non-empty inBuf
+	// or it has been decompressed into nothing.
+	// Read more data into inBuf and try decompressing again.
+	if err := zr.fillInBuf(); err != nil {
+		return err
+	}
+	goto tryDecompressAgain
+}
+
+func (zr *Reader) fillInBuf() error {
+	// Copy the remaining data to the start of inBuf.
+	copy(zr.inBufGo, zr.inBufGo[zr.inBuf.pos:zr.inBuf.size])
+	zr.inBuf.size -= zr.inBuf.pos
+	zr.inBuf.pos = 0
+
+readAgain:
+	// Read more data into inBuf.
+	n, err := zr.r.Read(zr.inBufGo[zr.inBuf.size:])
+	zr.inBuf.size += C.size_t(n)
+	if err == nil {
+		if n == 0 {
+			// Nothing has been read. Try reading data again.
+			goto readAgain
+		}
+		return nil
+	}
+	if err != io.EOF {
+		return fmt.Errorf("cannot read data from the underlying reader: %s", err)
+	}
+	if n == 0 {
+		return io.EOF
+	}
 	return nil
 }
