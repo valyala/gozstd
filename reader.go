@@ -168,6 +168,7 @@ func (zr *Reader) readInBuf() error {
 		// Read inBuf.
 		n, err := zr.r.Read(zr.inBufGo)
 		zr.inBuf.size = C.size_t(n)
+		zr.inBuf.pos = 0
 		if err != nil {
 			if err != io.EOF {
 				return fmt.Errorf("cannot read data from the underlying reader: %s", err)
