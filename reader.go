@@ -164,8 +164,11 @@ func (zr *Reader) Read(p []byte) (int, error) {
 }
 
 func (zr *Reader) fillOutBuf() error {
-	if zr.inBuf.pos == zr.inBuf.size {
-		// inBuf is empty. Read more data into it.
+	if zr.inBuf.pos == zr.inBuf.size && zr.outBuf.size < dstreamOutBufSize {
+		// inBuf is empty and the previously decompressed data size
+		// is smaller than the maximum possible zr.outBuf.size.
+		// This means that the internal buffer in zr.ds doesn't contain
+		// more data to decompress, so read new data into inBuf.
 		if err := zr.fillInBuf(); err != nil {
 			return err
 		}
@@ -189,15 +192,16 @@ tryDecompressAgain:
 		return nil
 	}
 
-	// Nothing has been decompressed from non-empty inBuf.
-	if zr.inBuf.pos != prevInBufPos && zr.inBuf.pos != zr.inBuf.size {
+	// Nothing has been decompressed from inBuf.
+	if zr.inBuf.pos != prevInBufPos && zr.inBuf.pos < zr.inBuf.size {
 		// Data has been consumed from inBuf, but decompressed
-		// into nothing. Try decompressing again.
+		// into nothing. There is more data in inBuf, so try
+		// decompressing it again.
 		goto tryDecompressAgain
 	}
 
-	// Either nothing has been consumed from non-empty inBuf
-	// or it has been decompressed into nothing.
+	// Either nothing has been consumed from inBuf or it has been
+	// decompressed into nothing and inBuf became empty.
 	// Read more data into inBuf and try decompressing again.
 	if err := zr.fillInBuf(); err != nil {
 		return err

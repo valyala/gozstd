@@ -11,6 +11,48 @@ import (
 	"time"
 )
 
+func TestReaderReadCompressBomb(t *testing.T) {
+	// Compress easily compressible string with size greater
+	// than the dstreamOutBufSize.
+	// This string shuld be compressed into a short byte slice,
+	// which should be then decompressed into a big buffer
+	// with size greater than dstreamOutBufSize.
+	// This means the Reader.outBuf capacity isn't enough to hold
+	// all the decompressed data.
+
+	var bb bytes.Buffer
+	zw := NewWriter(&bb)
+	s := newTestString(int(2*dstreamOutBufSize), 1)
+	n, err := zw.Write([]byte(s))
+	if err != nil {
+		t.Fatalf("unexpected error in Writer.Write: %s", err)
+	}
+	if n != len(s) {
+		t.Fatalf("unexpected number of bytes written; got %d; want %d", n, len(s))
+	}
+	if err := zw.Flush(); err != nil {
+		t.Fatalf("cannot flush data: %s", err)
+	}
+
+	zr := NewReader(&bb)
+	buf := make([]byte, len(s))
+	n, err = io.ReadFull(zr, buf)
+	if err != nil {
+		t.Fatalf("unexpected error in io.ReadFull: %s", err)
+	}
+	if n != len(s) {
+		t.Fatalf("unexpected number of bytes read; got %d; want %d", n, len(s))
+	}
+	if string(buf) != s {
+		t.Fatalf("unexpected data read;\ngot\n%X\nwant\n%X", buf, s)
+	}
+
+	// Free resources.
+	zw.Close()
+	zw.Release()
+	zr.Release()
+}
+
 func TestReaderWriteTo(t *testing.T) {
 	data := newTestString(130*1024, 3)
 	compressedData := Compress(nil, []byte(data))
