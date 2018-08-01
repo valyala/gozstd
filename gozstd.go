@@ -157,7 +157,7 @@ func compress(cctx, cctxDict *C.ZSTD_CCtx, dst, src []byte, cd *CDict, compressi
 	// Slow path - resize dst to fit compressed data.
 	compressBound := int(C.ZSTD_compressBound(C.size_t(len(src)))) + 1
 	for cap(dst)-dstLen < compressBound {
-		dst = append(dst, 0)
+		dst = append(dst[:cap(dst)], 0)
 	}
 	dst = dst[:cap(dst)]
 
@@ -300,7 +300,7 @@ func decompress(dctx, dctxDict *C.ZSTD_DCtx, dst, src []byte, dd *DDict) ([]byte
 	decompressBound++
 
 	for cap(dst)-dstLen < decompressBound {
-		dst = append(dst, 0)
+		dst = append(dst[:cap(dst)], 0)
 	}
 	dst = dst[:cap(dst)]
 
