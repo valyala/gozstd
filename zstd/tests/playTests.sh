@@ -48,8 +48,6 @@ fileRoundTripTest() {
     $DIFF -q tmp.md5.1 tmp.md5.2
 }
 
-UNAME=$(uname)
-
 isTerminal=false
 if [ -t 0 ] && [ -t 1 ]
 then
@@ -58,10 +56,7 @@ fi
 
 isWindows=false
 INTOVOID="/dev/null"
-case "$UNAME" in
-  GNU) DEVDEVICE="/dev/random" ;;
-  *) DEVDEVICE="/dev/zero" ;;
-esac
+DEVDEVICE="/dev/random"
 case "$OS" in
   Windows*)
     isWindows=true
@@ -70,6 +65,7 @@ case "$OS" in
     ;;
 esac
 
+UNAME=$(uname)
 case "$UNAME" in
   Darwin) MD5SUM="md5 -r" ;;
   FreeBSD) MD5SUM="gmd5sum" ;;
@@ -404,13 +400,7 @@ $ECHO "Hello World" > tmp
 $ZSTD --train-legacy -q tmp && die "Dictionary training should fail : not enough input source"
 ./datagen -P0 -g10M > tmp
 $ZSTD --train-legacy -q tmp && die "Dictionary training should fail : source is pure noise"
-$ECHO "- Test -o before --train"
-rm -f tmpDict dictionary
-$ZSTD -o tmpDict --train *.c ../programs/*.c
-test -f tmpDict
-$ZSTD --train *.c ../programs/*.c
-test -f dictionary
-rm tmp* dictionary
+rm tmp*
 
 
 $ECHO "\n===>  cover dictionary builder : advanced options "
@@ -418,7 +408,7 @@ $ECHO "\n===>  cover dictionary builder : advanced options "
 TESTFILE=../programs/zstdcli.c
 ./datagen > tmpDict
 $ECHO "- Create first dictionary"
-$ZSTD --train-cover=k=46,d=8,split=80 *.c ../programs/*.c -o tmpDict
+$ZSTD --train-cover=k=46,d=8 *.c ../programs/*.c -o tmpDict
 cp $TESTFILE tmp
 $ZSTD -f tmp -D tmpDict
 $ZSTD -d tmp.zst -D tmpDict -fo result
@@ -431,18 +421,7 @@ $ZSTD --train-cover=k=46,d=8 *.c ../programs/*.c --dictID=1 -o tmpDict1
 cmp tmpDict tmpDict1 && die "dictionaries should have different ID !"
 $ECHO "- Create dictionary with size limit"
 $ZSTD --train-cover=steps=8 *.c ../programs/*.c -o tmpDict2 --maxdict=4K
-$ECHO "- Compare size of dictionary from 90% training samples with 80% training samples"
-$ZSTD --train-cover=split=90 -r *.c ../programs/*.c
-$ZSTD --train-cover=split=80 -r *.c ../programs/*.c
-$ECHO "- Create dictionary using all samples for both training and testing"
-$ZSTD --train-cover=split=100 -r *.c ../programs/*.c
-$ECHO "- Test -o before --train-cover"
-rm -f tmpDict dictionary
-$ZSTD -o tmpDict --train-cover *.c ../programs/*.c
-test -f tmpDict
-$ZSTD --train-cover *.c ../programs/*.c
-test -f dictionary
-rm tmp* dictionary
+rm tmp*
 
 $ECHO "\n===>  legacy dictionary builder "
 
@@ -462,13 +441,7 @@ $ZSTD --train-legacy -s5 *.c ../programs/*.c --dictID=1 -o tmpDict1
 cmp tmpDict tmpDict1 && die "dictionaries should have different ID !"
 $ECHO "- Create dictionary with size limit"
 $ZSTD --train-legacy -s9 *.c ../programs/*.c -o tmpDict2 --maxdict=4K
-$ECHO "- Test -o before --train-legacy"
-rm -f tmpDict dictionary
-$ZSTD -o tmpDict --train-legacy *.c ../programs/*.c
-test -f tmpDict
-$ZSTD --train-legacy *.c ../programs/*.c
-test -f dictionary
-rm tmp* dictionary
+rm tmp*
 
 
 $ECHO "\n===>  integrity tests "
@@ -571,16 +544,16 @@ $ZSTD --format=xz -V || LZMAMODE=0
 if [ $LZMAMODE -eq 1 ]; then
     $ECHO "xz support detected"
     XZEXE=1
-    xz -Q -V && lzma -Q -V || XZEXE=0
+    xz -V && lzma -V || XZEXE=0
     if [ $XZEXE -eq 1 ]; then
         $ECHO "Testing zstd xz and lzma support"
         ./datagen > tmp
         $ZSTD --format=lzma -f tmp
         $ZSTD --format=xz -f tmp
-        xz -Q -t -v tmp.xz
-        xz -Q -t -v tmp.lzma
-        xz -Q -f -k tmp
-        lzma -Q -f -k --lzma1 tmp
+        xz -t -v tmp.xz
+        xz -t -v tmp.lzma
+        xz -f -k tmp
+        lzma -f -k --lzma1 tmp
         $ZSTD -d -f -v tmp.xz
         $ZSTD -d -f -v tmp.lzma
         rm tmp*
@@ -592,13 +565,13 @@ if [ $LZMAMODE -eq 1 ]; then
         $ECHO "Testing xz and lzma symlinks"
         ./datagen > tmp
         ./xz tmp
-        xz -Q -d tmp.xz
+        xz -d tmp.xz
         ./lzma tmp
-        lzma -Q -d tmp.lzma
+        lzma -d tmp.lzma
         $ECHO "Testing unxz and unlzma symlinks"
-        xz -Q tmp
+        xz tmp
         ./xz -d tmp.xz
-        lzma -Q tmp
+        lzma tmp
         ./lzma -d tmp.lzma
         rm xz unxz lzma unlzma
         rm tmp*
@@ -758,14 +731,8 @@ $ECHO "\n===>  zstd --list/-l error detection tests "
 ! $ZSTD -lv tmp1*
 ! $ZSTD --list -v tmp2 tmp12.zst
 
-$ECHO "\n===>  zstd --list/-l errors when presented with stdin / no files"
-! $ZSTD -l
-! $ZSTD -l -
-! $ZSTD -l < tmp1.zst
-! $ZSTD -l - < tmp1.zst
-! $ZSTD -l - tmp1.zst
-! $ZSTD -l - tmp1.zst < tmp1.zst
-$ZSTD -l tmp1.zst < tmp1.zst # but doesn't error just because stdin is not a tty
+$ECHO "\n===>  zstd --list/-l exits 1 when stdin is piped in"
+! echo "piped STDIN" | $ZSTD --list
 
 $ECHO "\n===>  zstd --list/-l test with null files "
 ./datagen -g0 > tmp5

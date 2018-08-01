@@ -797,14 +797,6 @@ FIO_compressZstdFrame(const cRess_t* ressPtr,
         }
     } while (directive != ZSTD_e_end);
 
-    if (ferror(srcFile)) {
-        EXM_THROW(26, "Read error : I/O error");
-    }
-    if (fileSize != UTIL_FILESIZE_UNKNOWN && *readsize != fileSize) {
-        EXM_THROW(27, "Read error : Incomplete read : %llu / %llu B",
-                (unsigned long long)*readsize, (unsigned long long)fileSize);
-    }
-
     return compressedfilesize;
 }
 
@@ -2025,25 +2017,21 @@ static int FIO_listFile(fileInfo_t* total, const char* inFileName, int displayLe
 }
 
 int FIO_listMultipleFiles(unsigned numFiles, const char** filenameTable, int displayLevel){
-    unsigned u;
-    for (u=0; u<numFiles;u++) {
-        if (!strcmp (filenameTable[u], stdinmark)) {
-            DISPLAYOUT("zstd: --list does not support reading from standard input\n");
-            return 1;
-        }
+
+    if (!IS_CONSOLE(stdin)) {
+        DISPLAYOUT("zstd: --list does not support reading from standard input\n");
+        return 1;
     }
 
     if (numFiles == 0) {
-        if (!IS_CONSOLE(stdin)) {
-            DISPLAYOUT("zstd: --list does not support reading from standard input\n");
-        }
         DISPLAYOUT("No files given\n");
-        return 1;
+        return 0;
     }
     if (displayLevel <= 2) {
         DISPLAYOUT("Frames  Skips  Compressed  Uncompressed  Ratio  Check  Filename\n");
     }
     {   int error = 0;
+        unsigned u;
         fileInfo_t total;
         memset(&total, 0, sizeof(total));
         total.usesCheck = 1;

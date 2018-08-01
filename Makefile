@@ -21,7 +21,7 @@ clean:
 
 update-zstd:
 	rm -rf zstd-tmp
-	git clone https://github.com/Facebook/zstd zstd-tmp
+	git clone --branch master --depth 1 https://github.com/Facebook/zstd zstd-tmp
 	rm -rf zstd-tmp/.git
 	rm -rf zstd
 	mv zstd-tmp zstd
