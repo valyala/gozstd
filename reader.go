@@ -30,8 +30,8 @@ type Reader struct {
 	inBuf  *C.ZSTD_inBuffer
 	outBuf *C.ZSTD_outBuffer
 
-	inBufGo  []byte
-	outBufGo []byte
+	inBufGo  cMemPtr
+	outBufGo cMemPtr
 }
 
 // NewReader returns new zstd reader reading compressed data from r.
@@ -50,10 +50,12 @@ func NewReaderDict(r io.Reader, dd *DDict) *Reader {
 	initDStream(ds, dd)
 
 	inBuf := (*C.ZSTD_inBuffer)(C.malloc(C.sizeof_ZSTD_inBuffer))
+	inBuf.src = C.malloc(dstreamInBufSize)
 	inBuf.size = 0
 	inBuf.pos = 0
 
 	outBuf := (*C.ZSTD_outBuffer)(C.malloc(C.sizeof_ZSTD_outBuffer))
+	outBuf.dst = C.malloc(dstreamOutBufSize)
 	outBuf.size = 0
 	outBuf.pos = 0
 
@@ -63,13 +65,10 @@ func NewReaderDict(r io.Reader, dd *DDict) *Reader {
 		dd:     dd,
 		inBuf:  inBuf,
 		outBuf: outBuf,
-
-		inBufGo:  make([]byte, dstreamInBufSize),
-		outBufGo: make([]byte, dstreamOutBufSize),
 	}
 
-	zr.inBuf.src = unsafe.Pointer(&zr.inBufGo[0])
-	zr.outBuf.dst = unsafe.Pointer(&zr.outBufGo[0])
+	zr.inBufGo = cMemPtr(zr.inBuf.src)
+	zr.outBufGo = cMemPtr(zr.outBuf.dst)
 
 	runtime.SetFinalizer(zr, freeDStream)
 	return zr
@@ -113,9 +112,11 @@ func (zr *Reader) Release() {
 	ensureNoError("ZSTD_freeDStream", result)
 	zr.ds = nil
 
+	C.free(zr.inBuf.src)
 	C.free(unsafe.Pointer(zr.inBuf))
 	zr.inBuf = nil
 
+	C.free(zr.outBuf.dst)
 	C.free(unsafe.Pointer(zr.outBuf))
 	zr.outBuf = nil
 
@@ -211,13 +212,13 @@ tryDecompressAgain:
 
 func (zr *Reader) fillInBuf() error {
 	// Copy the remaining data to the start of inBuf.
-	copy(zr.inBufGo, zr.inBufGo[zr.inBuf.pos:zr.inBuf.size])
+	copy(zr.inBufGo[:dstreamInBufSize], zr.inBufGo[zr.inBuf.pos:zr.inBuf.size])
 	zr.inBuf.size -= zr.inBuf.pos
 	zr.inBuf.pos = 0
 
 readAgain:
 	// Read more data into inBuf.
-	n, err := zr.r.Read(zr.inBufGo[zr.inBuf.size:])
+	n, err := zr.r.Read(zr.inBufGo[zr.inBuf.size:dstreamInBufSize])
 	zr.inBuf.size += C.size_t(n)
 	if err == nil {
 		if n == 0 {

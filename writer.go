@@ -20,6 +20,8 @@ var (
 	cstreamOutBufSize = C.ZSTD_CStreamOutSize()
 )
 
+type cMemPtr *[1 << 30]byte
+
 // Writer implements zstd writer.
 type Writer struct {
 	w                io.Writer
@@ -30,8 +32,8 @@ type Writer struct {
 	inBuf  *C.ZSTD_inBuffer
 	outBuf *C.ZSTD_outBuffer
 
-	inBufGo  []byte
-	outBufGo []byte
+	inBufGo  cMemPtr
+	outBufGo cMemPtr
 }
 
 // NewWriter returns new zstd writer writing compressed data to w.
@@ -87,13 +89,10 @@ func newWriterDictLevel(w io.Writer, cd *CDict, compressionLevel int) *Writer {
 		cd:               cd,
 		inBuf:            inBuf,
 		outBuf:           outBuf,
-
-		inBufGo:  make([]byte, cstreamInBufSize),
-		outBufGo: make([]byte, cstreamOutBufSize),
 	}
 
-	zw.inBuf.src = unsafe.Pointer(&zw.inBufGo[0])
-	zw.outBuf.dst = unsafe.Pointer(&zw.outBufGo[0])
+	zw.inBufGo = cMemPtr(zw.inBuf.src)
+	zw.outBufGo = cMemPtr(zw.outBuf.dst)
 
 	runtime.SetFinalizer(zw, freeCStream)
 	return zw
@@ -139,9 +138,11 @@ func (zw *Writer) Release() {
 	ensureNoError("ZSTD_freeCStream", result)
 	zw.cs = nil
 
+	C.free(unsafe.Pointer(zw.inBuf.src))
 	C.free(unsafe.Pointer(zw.inBuf))
 	zw.inBuf = nil
 
+	C.free(unsafe.Pointer(zw.outBuf.dst))
 	C.free(unsafe.Pointer(zw.outBuf))
 	zw.outBuf = nil
 
@@ -162,7 +163,7 @@ func (zw *Writer) ReadFrom(r io.Reader) (int64, error) {
 	for {
 		// Fill the inBuf.
 		for zw.inBuf.size < cstreamInBufSize {
-			n, err := r.Read(zw.inBufGo[zw.inBuf.size:])
+			n, err := r.Read(zw.inBufGo[zw.inBuf.size:cstreamInBufSize])
 			if err != nil {
 				if err == io.EOF {
 					return nn, nil
@@ -193,7 +194,7 @@ func (zw *Writer) Write(p []byte) (int, error) {
 	}
 
 	for {
-		n := copy(zw.inBufGo[zw.inBuf.size:], p)
+		n := copy(zw.inBufGo[zw.inBuf.size:cstreamInBufSize], p)
 		zw.inBuf.size += C.size_t(n)
 		p = p[n:]
 		if len(p) == 0 {
@@ -212,7 +213,7 @@ func (zw *Writer) flushInBuf() error {
 	ensureNoError("ZSTD_compressStream", result)
 
 	// Move the remaining data to the start of inBuf.
-	copy(zw.inBufGo, zw.inBufGo[zw.inBuf.pos:zw.inBuf.size])
+	copy(zw.inBufGo[:cstreamInBufSize], zw.inBufGo[zw.inBuf.pos:zw.inBuf.size])
 	zw.inBuf.size -= zw.inBuf.pos
 	zw.inBuf.pos = 0
 

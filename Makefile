@@ -26,3 +26,9 @@ update-zstd:
 	rm -rf zstd
 	mv zstd-tmp zstd
 	make libzstd.a
+
+test:
+	GODEBUG=cgocheck=2 go test -v
+
+bench:
+	go test -bench=.
