@@ -21,6 +21,7 @@
         building from a sample set. The created dictionary may be saved to persistent storage /
 	transfered over the network.
       * Dictionary loading for compression / decompression.
+      
     Pull requests for missing upstream `zstd` features are welcome.
 
 ## Quick start
