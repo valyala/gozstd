@@ -14,9 +14,14 @@
   * `Compress*` and `Decompress*` functions are optimized for high concurrency.
   * Proper [Writer.Flush](https://godoc.org/github.com/valyala/gozstd#Writer.Flush)
     for network apps.
-  * Supports [zstd dictionaries](https://github.com/facebook/zstd#the-case-for-small-data-compression)
-    for better small data compression.
-
+  * Supports the following features from upstream [zstd](https://facebook.github.io/zstd/):
+      * Block / stream compression / decompression with all the supported compression levels
+        and with dictionary support.
+      * [Dictionary](https://github.com/facebook/zstd#the-case-for-small-data-compression)
+        building from a sample set. The created dictionary may be saved to persistent storage /
+	transfered over the network.
+      * Dictionary loading for compression / decompression.
+    Pull requests for missing upstream `zstd` features are welcome.
 
 ## Quick start
 
