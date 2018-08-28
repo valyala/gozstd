@@ -58,16 +58,16 @@ and [Reader](https://godoc.org/github.com/valyala/gozstd#Reader) for stream deco
 
 ## FAQ
 
-  * Q: _Which go version is supported?_
+  * Q: _Which go version is supported?_  
     A: `go1.10` and newer. Pull requests for older go versions support
        are accepted.
 
-  * Q: _Which platforms/architectures are supported?_
+  * Q: _Which platforms/architectures are supported?_  
     A: `linux/amd64`,`darwin/amd64`,`windows/amd64`. Pull requests for other platforms/architectures support
        are accepted.
        
-  * Q: _I don't trust `libzstd*.a` binary files from the repo or these files dont't work on my OS/architecture. How to rebuild them?_
+  * Q: _I don't trust `libzstd*.a` binary files from the repo or these files dont't work on my OS/architecture. How to rebuild them?_  
     A: Just run `make clean libzstd.a` if your OS/architecture is supported.
     
-  * Q: _Why the repo contains `libzstd*.a` binary files?_
+  * Q: _Why the repo contains `libzstd*.a` binary files?_  
     A: This simplifies package installation to usual `go get` without additional steps for building the `libzstd*.a`
