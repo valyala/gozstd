@@ -26,6 +26,9 @@ update-zstd:
 	rm -rf zstd
 	mv zstd-tmp zstd
 	make libzstd.a
+	cp zstd/lib/zstd.h .
+	cp zstd/lib/dictBuilder/zdict.h .
+	cp zstd/lib/common/zstd_errors.h .
 
 test:
 	GODEBUG=cgocheck=2 go test -v

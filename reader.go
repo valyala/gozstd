@@ -3,7 +3,7 @@ package gozstd
 /*
 #define ZSTD_STATIC_LINKING_ONLY
 #include "zstd.h"
-#include "common/zstd_errors.h"
+#include "zstd_errors.h"
 
 #include <stdlib.h>  // for malloc/free
 */

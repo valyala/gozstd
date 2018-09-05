@@ -1,11 +1,11 @@
 package gozstd
 
 /*
-#cgo CFLAGS: -O3 -I${SRCDIR}/zstd/lib
+#cgo CFLAGS: -O3
 
 #define ZSTD_STATIC_LINKING_ONLY
 #include "zstd.h"
-#include "common/zstd_errors.h"
+#include "zstd_errors.h"
 
 #include <stdint.h>  // for uintptr_t
 

@@ -5,7 +5,7 @@ package gozstd
 #include "zstd.h"
 
 #define ZDICT_STATIC_LINKING_ONLY
-#include "dictBuilder/zdict.h"
+#include "zdict.h"
 
 #include <stdint.h>  // for uintptr_t
 
