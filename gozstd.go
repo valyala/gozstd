@@ -156,10 +156,11 @@ func compress(cctx, cctxDict *C.ZSTD_CCtx, dst, src []byte, cd *CDict, compressi
 
 	// Slow path - resize dst to fit compressed data.
 	compressBound := int(C.ZSTD_compressBound(C.size_t(len(src)))) + 1
-	for cap(dst)-dstLen < compressBound {
-		dst = append(dst[:cap(dst)], 0)
-	}
 	dst = dst[:cap(dst)]
+	if n := compressBound - cap(dst) + dstLen; n > 0 {
+		// This should be optimized since go 1.11 - see https://golang.org/doc/go1.11#performance-compiler.
+		dst = append(dst, make([]byte, n)...)
+	}
 
 	result := compressInternal(cctx, cctxDict, dst[dstLen:], src, cd, compressionLevel, true)
 	compressedSize := int(result)
@@ -299,10 +300,11 @@ func decompress(dctx, dctxDict *C.ZSTD_DCtx, dst, src []byte, dd *DDict) ([]byte
 	}
 	decompressBound++
 
-	for cap(dst)-dstLen < decompressBound {
-		dst = append(dst[:cap(dst)], 0)
-	}
 	dst = dst[:cap(dst)]
+	if n := decompressBound - cap(dst) + dstLen; n > 0 {
+		// This should be optimized since go 1.11 - see https://golang.org/doc/go1.11#performance-compiler.
+		dst = append(dst, make([]byte, n)...)
+	}
 
 	result := decompressInternal(dctx, dctxDict, dst[dstLen:], src, dd)
 	decompressedSize := int(result)
