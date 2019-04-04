@@ -300,10 +300,10 @@ func decompress(dctx, dctxDict *C.ZSTD_DCtx, dst, src []byte, dd *DDict) ([]byte
 		C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))), C.size_t(len(src))))
 	// Prevent from GC'ing of src during CGO call above.
 	runtime.KeepAlive(src)
-	switch uint(decompressBound) {
-	case uint(C.ZSTD_CONTENTSIZE_UNKNOWN):
+	switch uint64(decompressBound) {
+	case uint64(C.ZSTD_CONTENTSIZE_UNKNOWN):
 		return streamDecompress(dst, src, dd)
-	case uint(C.ZSTD_CONTENTSIZE_ERROR):
+	case uint64(C.ZSTD_CONTENTSIZE_ERROR):
 		return dst, fmt.Errorf("cannod decompress invalid src")
 	}
 	decompressBound++
