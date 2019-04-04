@@ -175,6 +175,9 @@ func compressInternal(cctx, cctxDict *C.ZSTD_CCtx, dst, src []byte, cd *CDict, c
 			C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))),
 			C.size_t(len(src)),
 			cd.p)
+		// Prevent from GC'ing of dst and src during CGO call above.
+		runtime.KeepAlive(dst)
+		runtime.KeepAlive(src)
 		if mustSucceed {
 			ensureNoError("ZSTD_compress_usingCDict_wrapper", result)
 		}
@@ -186,6 +189,9 @@ func compressInternal(cctx, cctxDict *C.ZSTD_CCtx, dst, src []byte, cd *CDict, c
 		C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))),
 		C.size_t(len(src)),
 		C.int(compressionLevel))
+	// Prevent from GC'ing of dst and src during CGO call above.
+	runtime.KeepAlive(dst)
+	runtime.KeepAlive(src)
 	if mustSucceed {
 		ensureNoError("ZSTD_compressCCtx_wrapper", result)
 	}
@@ -292,6 +298,8 @@ func decompress(dctx, dctxDict *C.ZSTD_DCtx, dst, src []byte, dd *DDict) ([]byte
 	// Slow path - resize dst to fit decompressed data.
 	decompressBound := int(C.ZSTD_getFrameContentSize_wrapper(
 		C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))), C.size_t(len(src))))
+	// Prevent from GC'ing of src during CGO call above.
+	runtime.KeepAlive(src)
 	switch uint(decompressBound) {
 	case uint(C.ZSTD_CONTENTSIZE_UNKNOWN):
 		return streamDecompress(dst, src, dd)
@@ -318,19 +326,25 @@ func decompress(dctx, dctxDict *C.ZSTD_DCtx, dst, src []byte, dd *DDict) ([]byte
 }
 
 func decompressInternal(dctx, dctxDict *C.ZSTD_DCtx, dst, src []byte, dd *DDict) C.size_t {
+	var n C.size_t
 	if dd != nil {
-		return C.ZSTD_decompress_usingDDict_wrapper(dctxDict,
+		n = C.ZSTD_decompress_usingDDict_wrapper(dctxDict,
 			C.uintptr_t(uintptr(unsafe.Pointer(&dst[0]))),
 			C.size_t(cap(dst)),
 			C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))),
 			C.size_t(len(src)),
 			dd.p)
+	} else {
+		n = C.ZSTD_decompressDCtx_wrapper(dctx,
+			C.uintptr_t(uintptr(unsafe.Pointer(&dst[0]))),
+			C.size_t(cap(dst)),
+			C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))),
+			C.size_t(len(src)))
 	}
-	return C.ZSTD_decompressDCtx_wrapper(dctx,
-		C.uintptr_t(uintptr(unsafe.Pointer(&dst[0]))),
-		C.size_t(cap(dst)),
-		C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))),
-		C.size_t(len(src)))
+	// Prevent from GC'ing of dst and src during CGO calls above.
+	runtime.KeepAlive(dst)
+	runtime.KeepAlive(src)
+	return n
 }
 
 func errStr(result C.size_t) string {

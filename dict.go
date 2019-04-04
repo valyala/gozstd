@@ -125,6 +125,8 @@ func NewCDictLevel(dict []byte, compressionLevel int) (*CDict, error) {
 			C.int(compressionLevel)),
 		compressionLevel: compressionLevel,
 	}
+	// Prevent from GC'ing of dict during CGO call above.
+	runtime.KeepAlive(dict)
 	runtime.SetFinalizer(cd, freeCDict)
 	return cd, nil
 }
@@ -165,6 +167,8 @@ func NewDDict(dict []byte) (*DDict, error) {
 			C.uintptr_t(uintptr(unsafe.Pointer(&dict[0]))),
 			C.size_t(len(dict))),
 	}
+	// Prevent from GC'ing of dict during CGO call above.
+	runtime.KeepAlive(dict)
 	runtime.SetFinalizer(dd, freeDDict)
 	return dd, nil
 }
