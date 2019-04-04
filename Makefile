@@ -1,23 +1,33 @@
-libzstd_target = libzstd.a
-ifeq ($(OS),Windows_NT)
-	libzstd_target = libzstd_windows.a
+GOOS ?= $(shell go env GOOS)
+GOARCH ?= $(shell go env GOARCH)
+GOOS_GOARCH := $(GOOS)_$(GOARCH)
+GOOS_GOARCH_NATIVE := $(shell go env GOHOSTOS)_$(shell go env GOHOSTARCH)
+LIBZSTD_NAME := libzstd_$(GOOS_GOARCH).a
+
+.PHONY: libzstd.a
+
+libzstd.a: $(LIBZSTD_NAME)
+
+$(LIBZSTD_NAME):
+ifeq ($(GOOS_GOARCH),$(GOOS_GOARCH_NATIVE))
+	echo $(GOOS_GOARCH)
+	echo $(GOOS_GOARCH_NATIVE)
+	cd zstd/lib && ZSTD_LEGACY_SUPPORT=0 $(MAKE) clean libzstd.a
+	mv zstd/lib/libzstd.a $(LIBZSTD_NAME)
 else
-	UNAME_S := $(shell uname -s)
-	ifeq ($(UNAME_S),Linux)
-		libzstd_target = libzstd_linux.a
-	endif
-	ifeq ($(UNAME_S),Darwin)
-		libzstd_target = libzstd_darwin.a
-	endif
+ifeq ($(GOOS_GOARCH),linux_arm)
+	cd zstd/lib && CC=arm-linux-gnueabi-gcc ZSTD_LEGACY_SUPPORT=0 $(MAKE) clean libzstd.a
+	mv zstd/lib/libzstd.a libzstd_linux_arm.a
+endif
+ifeq ($(GOOS_GOARCH),linux_386)
+	cd zstd/lib && CC=arm-linux-gnueabi-gcc ZSTD_LEGACY_SUPPORT=0 $(MAKE) clean libzstd.a
+	mv zstd/lib/libzstd.a libzstd_linux_arm.a
+endif
 endif
 
-libzstd.a:
-	cd zstd/lib && ZSTD_LEGACY_SUPPORT=0 make libzstd.a
-	mv zstd/lib/libzstd.a $(libzstd_target)
-	cd zstd && make clean
-
 clean:
-	rm -f $(libzstd_target)
+	rm -f $(LIBZSTD_NAME)
+	cd zstd && make clean
 
 update-zstd:
 	rm -rf zstd-tmp
@@ -25,13 +35,13 @@ update-zstd:
 	rm -rf zstd-tmp/.git
 	rm -rf zstd
 	mv zstd-tmp zstd
-	make libzstd.a
+	$(MAKE) libzstd.a
 	cp zstd/lib/zstd.h .
 	cp zstd/lib/dictBuilder/zdict.h .
 	cp zstd/lib/common/zstd_errors.h .
 
 test:
-	GODEBUG=cgocheck=2 go test -v
+	CGO_ENABLED=1 GODEBUG=cgocheck=2 go test -v
 
 bench:
-	go test -bench=.
+	CGO_ENABLED=1 go test -bench=.
