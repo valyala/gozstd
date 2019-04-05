@@ -29,7 +29,7 @@ update-zstd:
 	rm -rf zstd-tmp/.git
 	rm -rf zstd
 	mv zstd-tmp zstd
-	$(MAKE) libzstd.a
+	$(MAKE) clean libzstd.a
 	cp zstd/lib/zstd.h .
 	cp zstd/lib/dictBuilder/zdict.h .
 	cp zstd/lib/common/zstd_errors.h .
