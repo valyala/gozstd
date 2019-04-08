@@ -17,6 +17,10 @@ ifeq ($(GOOS_GOARCH),linux_arm)
 	cd zstd/lib && CC=arm-linux-gnueabi-gcc ZSTD_LEGACY_SUPPORT=0 $(MAKE) clean libzstd.a
 	mv zstd/lib/libzstd.a libzstd_linux_arm.a
 endif
+ifeq ($(GOOS_GOARCH),linux_arm64)
+	cd zstd/lib && CC=aarch64-linux-gnu-gcc ZSTD_LEGACY_SUPPORT=0 $(MAKE) clean libzstd.a
+	mv zstd/lib/libzstd.a libzstd_linux_arm64.a
+endif
 endif
 
 clean:

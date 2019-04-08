@@ -63,7 +63,7 @@ and [Reader](https://godoc.org/github.com/valyala/gozstd#Reader) for stream deco
        are accepted.
 
   * Q: _Which platforms/architectures are supported?_  
-    A: `linux/amd64`, `linux/arm`, `darwin/amd64`, `windows/amd64`. Pull requests for other platforms/architectures support
+    A: `linux/amd64`, `linux/arm`, `linux/arm64`, `darwin/amd64`, `windows/amd64`. Pull requests for other platforms/architectures support
        are accepted.
        
   * Q: _I don't trust `libzstd*.a` binary files from the repo or these files dont't work on my OS/ARCH. How to rebuild them?_
