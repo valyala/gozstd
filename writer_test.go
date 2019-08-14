@@ -12,6 +12,32 @@ import (
 	"time"
 )
 
+type EOFReader struct {
+	b []byte
+}
+
+func (er EOFReader) Read(p []byte) (int, error) {
+	if len(p) < len(er.b) {
+		er.b = er.b[:len(p)]
+	}
+	return copy(p, er.b), io.EOF
+}
+
+func TestWriterReadFromWithEOF(t *testing.T) {
+	var bb bytes.Buffer
+	zw := NewWriter(&bb)
+	defer zw.Release()
+
+	data := []byte(newTestString(42, 3))
+	n, err := zw.ReadFrom(EOFReader{data})
+	if err != nil {
+		t.Fatalf("cannot read data to zw: %s", err)
+	}
+	if n != int64(len(data)) {
+		t.Fatalf("unexpected number of bytes read; got %d; want %d", n, len(data))
+	}
+}
+
 func TestWriterReadFrom(t *testing.T) {
 	var bb bytes.Buffer
 	zw := NewWriter(&bb)
