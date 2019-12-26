@@ -2,6 +2,7 @@ package gozstd
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"math/rand"
 	"runtime"
@@ -9,6 +10,57 @@ import (
 	"testing"
 	"time"
 )
+
+func TestDecompressSmallBlockWithoutSingleSegmentFlag(t *testing.T) {
+	// See https://github.com/VictoriaMetrics/VictoriaMetrics/issues/281 for details.
+	cblockHex := "28B52FFD00007D000038C0A907DFD40300015407022B0E02"
+	dblockHexExpected := "C0A907DFD4030000000000000000000000000000000000000000000000"+
+		"00000000000000000000000000000000000000000000000000000000000000000000000"+
+		"00000000000000000000000000000000000000000000000000000000000000000000000"+
+		"00000000000000000000000000000000000000000000000000000000000000000000000"+
+		"000000000000000000000000000000000"
+
+	cblock := mustUnhex(cblockHex)
+	dblockExpected := mustUnhex(dblockHexExpected)
+
+	t.Run("empty-dst-buf", func(t *testing.T) {
+		dblock, err := Decompress(nil, cblock)
+		if err != nil {
+			t.Fatalf("unexpected error when decrompressing with empty initial buffer: %s", err)
+		}
+		if string(dblock) != string(dblockExpected) {
+			t.Fatalf("unexpected decompressed block;\ngot\n%X\nwant\n%X", dblock, dblockExpected)
+		}
+	})
+	t.Run("small-dst-buf", func(t *testing.T) {
+		buf := make([]byte, len(dblockExpected)/2)
+		dblock, err := Decompress(buf[:0], cblock)
+		if err != nil {
+			t.Fatalf("unexpected error when decrompressing with empty initial buffer: %s", err)
+		}
+		if string(dblock) != string(dblockExpected) {
+			t.Fatalf("unexpected decompressed block;\ngot\n%X\nwant\n%X", dblock, dblockExpected)
+		}
+	})
+	t.Run("enough-dst-buf", func(t *testing.T) {
+		buf := make([]byte, len(dblockExpected))
+		dblock, err := Decompress(buf[:0], cblock)
+		if err != nil {
+			t.Fatalf("unexpected error when decrompressing with empty initial buffer: %s", err)
+		}
+		if string(dblock) != string(dblockExpected) {
+			t.Fatalf("unexpected decompressed block;\ngot\n%X\nwant\n%X", dblock, dblockExpected)
+		}
+	})
+}
+
+func mustUnhex(dataHex string) []byte {
+	data, err := hex.DecodeString(dataHex)
+	if err != nil {
+		panic(fmt.Errorf("BUG: cannot unhex %q: %s", dataHex, err))
+	}
+	return data
+}
 
 func TestCompressDecompressDistinctConcurrentDicts(t *testing.T) {
 	// Build multiple distinct dicts.
