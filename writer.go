@@ -151,7 +151,8 @@ func newWriterParams(w io.Writer, params *WriterParams) *Writer {
 }
 
 // Reset resets zw to write to w using the given dictionary cd and the given
-// compressionLevel. Other parameters set via WriterParams remain unchanged.
+// compressionLevel. Use ResetWriterParams if you wish to change other
+// parameters that were set via WriterParams.
 func (zw *Writer) Reset(w io.Writer, cd *CDict, compressionLevel int) {
 	zw.inBuf.size = 0
 	zw.inBuf.pos = 0
@@ -164,6 +165,19 @@ func (zw *Writer) Reset(w io.Writer, cd *CDict, compressionLevel int) {
 		Dict:             cd,
 		WindowLog:        zw.wlog,
 	}
+	initCStream(zw.cs, params)
+
+	zw.w = w
+}
+
+// ResetWriterParams resets zw to write to w using the given set of parameters.
+func (zw *Writer) ResetWriterParams(w io.Writer, params *WriterParams) {
+	zw.inBuf.size = 0
+	zw.inBuf.pos = 0
+	zw.outBuf.size = cstreamOutBufSize
+	zw.outBuf.pos = 0
+
+	zw.cd = params.Dict
 	initCStream(zw.cs, params)
 
 	zw.w = w
