@@ -44,7 +44,7 @@ type Writer struct {
 //
 // Call Release when the Writer is no longer needed.
 func NewWriter(w io.Writer) *Writer {
-	return newWriterParams(w, nil)
+	return NewWriterParams(w, nil)
 }
 
 // NewWriterLevel returns new zstd writer writing compressed data to w
@@ -58,7 +58,7 @@ func NewWriterLevel(w io.Writer, compressionLevel int) *Writer {
 	params := &WriterParams{
 		CompressionLevel: compressionLevel,
 	}
-	return newWriterParams(w, params)
+	return NewWriterParams(w, params)
 }
 
 // NewWriterDict returns new zstd writer writing compressed data to w
@@ -72,7 +72,7 @@ func NewWriterDict(w io.Writer, cd *CDict) *Writer {
 	params := &WriterParams{
 		Dict: cd,
 	}
-	return newWriterParams(w, params)
+	return NewWriterParams(w, params)
 }
 
 const (
@@ -116,10 +116,6 @@ type WriterParams struct {
 //
 // Call Release when the Writer is no longer needed.
 func NewWriterParams(w io.Writer, params *WriterParams) *Writer {
-	return newWriterParams(w, params)
-}
-
-func newWriterParams(w io.Writer, params *WriterParams) *Writer {
 	if params == nil {
 		params = &WriterParams{}
 	}
