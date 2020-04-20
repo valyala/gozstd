@@ -193,6 +193,44 @@ func testWriterDictSerial(cd *CDict, dd *DDict) error {
 	return nil
 }
 
+func TestWriterWindowLog(t *testing.T) {
+	// Do not exceed 27 as decompressing data would require special treatment
+	// outof the scope of this library. For instance, using the command-line
+	// `zstd` would require passing the -long=28 option.
+	const wlogMax = 27
+
+	src := []byte(newTestString(512, 3))
+	for level := 0; level < 23; level++ {
+		for wlog := WindowLogMin; wlog <= wlogMax; wlog++ {
+			params := WriterParams{
+				CompressionLevel: level,
+				WindowLog:        wlog,
+			}
+
+			var bb bytes.Buffer
+			zw := NewWriterParams(&bb, params)
+
+			_, err := io.Copy(zw, bytes.NewReader(src))
+			if err != nil {
+				t.Fatalf("error when compressing on level %d wlog %d: %s", level, wlog, err)
+			}
+			if err := zw.Close(); err != nil {
+				t.Fatalf("error when closing zw on level %d wlog %d: %s", level, wlog, err)
+			}
+			zw.Release()
+
+			zr := NewReader(bytes.NewReader(bb.Bytes()))
+			plainData, err := ioutil.ReadAll(zr)
+			if err != nil {
+				t.Fatalf("cannot decompress data on level %d wlog %d: %s", level, wlog, err)
+			}
+			if !bytes.Equal(plainData, src) {
+				t.Fatalf("unexpected data obtained after decompression on level %d wlog %d; got\n%X; want\n%X", level, wlog, plainData, src)
+			}
+		}
+	}
+}
+
 func TestWriterMultiFrames(t *testing.T) {
 	var bb bytes.Buffer
 	var bbOrig bytes.Buffer
