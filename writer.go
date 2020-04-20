@@ -44,7 +44,7 @@ type Writer struct {
 //
 // Call Release when the Writer is no longer needed.
 func NewWriter(w io.Writer) *Writer {
-	return newWriterParams(w, &WriterParams{})
+	return newWriterParams(w, nil)
 }
 
 // NewWriterLevel returns new zstd writer writing compressed data to w
@@ -120,6 +120,10 @@ func NewWriterParams(w io.Writer, params *WriterParams) *Writer {
 }
 
 func newWriterParams(w io.Writer, params *WriterParams) *Writer {
+	if params == nil {
+		params = &WriterParams{}
+	}
+
 	cs := C.ZSTD_createCStream()
 	initCStream(cs, params)
 
