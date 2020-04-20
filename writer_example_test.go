@@ -106,7 +106,7 @@ func ExampleWriterParams() {
 
 	// Compress data to bb.
 	var bb bytes.Buffer
-	zw := NewWriterParams(&bb, WriterParams{
+	zw := NewWriterParams(&bb, &WriterParams{
 		CompressionLevel: 10,
 		WindowLog:        14,
 	})

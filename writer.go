@@ -90,8 +90,8 @@ const (
 // A WriterParams allows users to specify compression parameters by calling
 // NewWriterParams.
 //
-// Calling NewWriterParams with a zero-value WriterParams is equivalent to
-// calling NewWriter.
+// Calling NewWriterParams with a zero-value or nil WriterParams is equivalent
+// to calling NewWriter.
 type WriterParams struct {
 	// Compression level. Special value 0 means default.
 	CompressionLevel int
@@ -104,7 +104,7 @@ type WriterParams struct {
 	// decompressor requires special treatment.
 	WindowLog int
 
-	// Dict is the dictionnary used for compression. May be nil.
+	// Dict is optional dictionary used for compression.
 	Dict *CDict
 }
 
@@ -115,8 +115,8 @@ type WriterParams struct {
 // to finalize the compressed stream.
 //
 // Call Release when the Writer is no longer needed.
-func NewWriterParams(w io.Writer, params WriterParams) *Writer {
-	return newWriterParams(w, &params)
+func NewWriterParams(w io.Writer, params *WriterParams) *Writer {
+	return newWriterParams(w, params)
 }
 
 func newWriterParams(w io.Writer, params *WriterParams) *Writer {

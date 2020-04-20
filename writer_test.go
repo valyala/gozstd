@@ -202,7 +202,7 @@ func TestWriterWindowLog(t *testing.T) {
 	src := []byte(newTestString(512, 3))
 	for level := 0; level < 23; level++ {
 		for wlog := WindowLogMin; wlog <= wlogMax; wlog++ {
-			params := WriterParams{
+			params := &WriterParams{
 				CompressionLevel: level,
 				WindowLog:        wlog,
 			}
