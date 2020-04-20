@@ -121,7 +121,7 @@ func NewWriterParams(w io.Writer, params *WriterParams) *Writer {
 	}
 
 	cs := C.ZSTD_createCStream()
-	initCStream(cs, params)
+	initCStream(cs, *params)
 
 	inBuf := (*C.ZSTD_inBuffer)(C.malloc(C.sizeof_ZSTD_inBuffer))
 	inBuf.src = C.malloc(cstreamInBufSize)
@@ -160,7 +160,7 @@ func (zw *Writer) Reset(w io.Writer, cd *CDict, compressionLevel int) {
 	zw.outBuf.pos = 0
 
 	zw.cd = cd
-	params := &WriterParams{
+	params := WriterParams{
 		CompressionLevel: compressionLevel,
 		Dict:             cd,
 		WindowLog:        zw.wlog,
@@ -178,12 +178,12 @@ func (zw *Writer) ResetWriterParams(w io.Writer, params *WriterParams) {
 	zw.outBuf.pos = 0
 
 	zw.cd = params.Dict
-	initCStream(zw.cs, params)
+	initCStream(zw.cs, *params)
 
 	zw.w = w
 }
 
-func initCStream(cs *C.ZSTD_CStream, params *WriterParams) {
+func initCStream(cs *C.ZSTD_CStream, params WriterParams) {
 	if params.Dict != nil {
 		result := C.ZSTD_initCStream_usingCDict(cs, params.Dict.p)
 		ensureNoError("ZSTD_initCStream_usingCDict", result)
