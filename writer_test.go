@@ -231,6 +231,44 @@ func TestWriterWindowLog(t *testing.T) {
 	}
 }
 
+func TestWriterResetWriterParams(t *testing.T) {
+	var bbOrig bytes.Buffer
+	zw := NewWriter(ioutil.Discard)
+	defer zw.Release()
+
+	for j := 0; j < 1e4; j++ {
+		if _, err := fmt.Fprintf(&bbOrig, "This is number %d ", j); err != nil {
+			t.Fatalf("error when writing data to bbOrig: %s", err)
+		}
+	}
+
+	const wlogMax = 27
+	for i := 0; i < 100; i++ {
+		var bb bytes.Buffer
+		params := WriterParams{
+			// loop WindowLog from WindowLogMin to 27
+			WindowLog:        WindowLogMin + i%(wlogMax-WindowLogMin),
+			CompressionLevel: i % 10,
+		}
+		zw.ResetWriterParams(&bb, &params)
+
+		io.Copy(zw, bytes.NewReader(bbOrig.Bytes()))
+		if err := zw.Close(); err != nil {
+			t.Fatalf("error when closing zw: %s", err)
+		}
+
+		plainData, err := Decompress(nil, bb.Bytes())
+		if err != nil {
+			t.Fatalf("cannot decompress data written with %+v: %s", params, err)
+		}
+		origData := bbOrig.Bytes()
+		if !bytes.Equal(plainData, origData) {
+			t.Fatalf("unexpected data decompressed: got\n%q; want\n%q\nlen(data)=%d, len(orig)=%d",
+				plainData, origData, len(plainData), len(origData))
+		}
+	}
+}
+
 func TestWriterMultiFrames(t *testing.T) {
 	var bb bytes.Buffer
 	var bbOrig bytes.Buffer
