@@ -69,6 +69,34 @@ func NewWriterDict(w io.Writer, cd *CDict) *Writer {
 }
 
 func newWriterDictLevel(w io.Writer, cd *CDict, compressionLevel int) *Writer {
+const (
+	// WindowLogMin is the minimum value of the windowLog parameter.
+	WindowLogMin = 10 // from zstd.h
+	// WindowLogMax32 is the maximum value of the windowLog parameter on 32-bit architectures.
+	WindowLogMax32 = 30 // from zstd.h
+	// WindowLogMax64 is the maximum value of the windowLog parameter on 64-bit architectures.
+	WindowLogMax64 = 31 // from zstd.h
+
+	// DefaultWindowLog is the default value of the windowLog parameter.
+	DefaultWindowLog = 0
+)
+
+// A WriterParams allows users to specify compression parameters by calling
+// NewWriterParams.
+//
+// Calling NewWriterParams with a zero-value WriterParams is equivalent to
+// calling NewWriter.
+type WriterParams struct {
+	// Compression level. Special value 0 means default.
+	CompressionLevel int
+
+	// WindowLog. Must be clamped between WindowLogMin and WindowLogMin32/64.
+	// Special value 0 means 'use default windowLog'.
+	WindowLog int
+
+	// Dict is the dictionnary used for compression. May be nil.
+	Dict *CDict
+}
 	cs := C.ZSTD_createCStream()
 	initCStream(cs, cd, compressionLevel)
 
