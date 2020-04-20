@@ -90,10 +90,10 @@ const (
 // A WriterParams allows users to specify compression parameters by calling
 // NewWriterParams.
 //
-// Calling NewWriterParams with a zero-value or nil WriterParams is equivalent
-// to calling NewWriter.
+// Calling NewWriterParams with a nil WriterParams is equivalent to calling
+// NewWriter.
 type WriterParams struct {
-	// Compression level. Special value 0 means default.
+	// Compression level. Special value 0 means 'default compression level'.
 	CompressionLevel int
 
 	// WindowLog. Must be clamped between WindowLogMin and WindowLogMin32/64.
