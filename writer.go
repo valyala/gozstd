@@ -100,6 +100,10 @@ type WriterParams struct {
 
 	// WindowLog. Must be clamped between WindowLogMin and WindowLogMin32/64.
 	// Special value 0 means 'use default windowLog'.
+	//
+	// Note: enabling log distance matching increases memory usage for both
+	// compressor and decompressor. When set to a value greater than 27, the
+	// decompressor requires special treatment.
 	WindowLog int
 
 	// Dict is the dictionnary used for compression. May be nil.
