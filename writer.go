@@ -44,7 +44,7 @@ type Writer struct {
 //
 // Call Release when the Writer is no longer needed.
 func NewWriter(w io.Writer) *Writer {
-	return newWriterDictLevel(w, nil, DefaultCompressionLevel)
+	return newWriterParams(w, &WriterParams{})
 }
 
 // NewWriterLevel returns new zstd writer writing compressed data to w
@@ -55,7 +55,11 @@ func NewWriter(w io.Writer) *Writer {
 //
 // Call Release when the Writer is no longer needed.
 func NewWriterLevel(w io.Writer, compressionLevel int) *Writer {
-	return newWriterDictLevel(w, nil, compressionLevel)
+	params := &WriterParams{
+		CompressionLevel: compressionLevel,
+	}
+
+	return newWriterParams(w, params)
 }
 
 // NewWriterDict returns new zstd writer writing compressed data to w
@@ -66,10 +70,13 @@ func NewWriterLevel(w io.Writer, compressionLevel int) *Writer {
 //
 // Call Release when the Writer is no longer needed.
 func NewWriterDict(w io.Writer, cd *CDict) *Writer {
-	return newWriterDictLevel(w, cd, 0)
+	params := &WriterParams{
+		Dict: cd,
+	}
+
+	return newWriterParams(w, params)
 }
 
-func newWriterDictLevel(w io.Writer, cd *CDict, compressionLevel int) *Writer {
 const (
 	// WindowLogMin is the minimum value of the windowLog parameter.
 	WindowLogMin = 10 // from zstd.h
@@ -98,8 +105,21 @@ type WriterParams struct {
 	// Dict is the dictionnary used for compression. May be nil.
 	Dict *CDict
 }
+
+// NewWriterParams returns new zstd writer writing compressed data to w
+// using the given set of parameters.
+//
+// The returned writer must be closed with Close call in order
+// to finalize the compressed stream.
+//
+// Call Release when the Writer is no longer needed.
+func NewWriterParams(w io.Writer, params WriterParams) *Writer {
+	return newWriterParams(w, &params)
+}
+
+func newWriterParams(w io.Writer, params *WriterParams) *Writer {
 	cs := C.ZSTD_createCStream()
-	initCStream(cs, cd, compressionLevel)
+	initCStream(cs, params)
 
 	inBuf := (*C.ZSTD_inBuffer)(C.malloc(C.sizeof_ZSTD_inBuffer))
 	inBuf.src = C.malloc(cstreamInBufSize)
@@ -113,9 +133,10 @@ type WriterParams struct {
 
 	zw := &Writer{
 		w:                w,
-		compressionLevel: compressionLevel,
+		compressionLevel: params.CompressionLevel,
+		wlog:             params.WindowLog,
 		cs:               cs,
-		cd:               cd,
+		cd:               params.Dict,
 		inBuf:            inBuf,
 		outBuf:           outBuf,
 	}
@@ -128,7 +149,7 @@ type WriterParams struct {
 }
 
 // Reset resets zw to write to w using the given dictionary cd and the given
-// compressionLevel.
+// compressionLevel. Other parameters set via WriterParams remain unchanged.
 func (zw *Writer) Reset(w io.Writer, cd *CDict, compressionLevel int) {
 	zw.inBuf.size = 0
 	zw.inBuf.pos = 0
@@ -136,7 +157,12 @@ func (zw *Writer) Reset(w io.Writer, cd *CDict, compressionLevel int) {
 	zw.outBuf.pos = 0
 
 	zw.cd = cd
-	initCStream(zw.cs, zw.cd, compressionLevel)
+	params := &WriterParams{
+		CompressionLevel: compressionLevel,
+		Dict:             cd,
+		WindowLog:        zw.wlog,
+	}
+	initCStream(zw.cs, params)
 
 	zw.w = w
 }
