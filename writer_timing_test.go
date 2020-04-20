@@ -76,3 +76,17 @@ func benchmarkWriter(b *testing.B, blockSize, level int) {
 		}
 	})
 }
+
+func BenchmarkWriterResetAlloc(b *testing.B) {
+	b.ReportAllocs()
+
+	params := &WriterParams{}
+
+	zw := NewWriter(ioutil.Discard)
+	defer zw.Release()
+
+	for n := 0; n < b.N; n++ {
+		zw.Reset(ioutil.Discard, nil, 0)
+		zw.ResetWriterParams(ioutil.Discard, params)
+	}
+}

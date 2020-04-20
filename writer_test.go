@@ -193,6 +193,82 @@ func testWriterDictSerial(cd *CDict, dd *DDict) error {
 	return nil
 }
 
+func TestWriterWindowLog(t *testing.T) {
+	// Do not exceed 27 as decompressing data would require special treatment
+	// outof the scope of this library. For instance, using the command-line
+	// `zstd` would require passing the -long=28 option.
+	const wlogMax = 27
+
+	src := []byte(newTestString(512, 3))
+	for level := 0; level < 23; level++ {
+		for wlog := WindowLogMin; wlog <= wlogMax; wlog++ {
+			params := &WriterParams{
+				CompressionLevel: level,
+				WindowLog:        wlog,
+			}
+
+			var bb bytes.Buffer
+			zw := NewWriterParams(&bb, params)
+
+			_, err := io.Copy(zw, bytes.NewReader(src))
+			if err != nil {
+				t.Fatalf("error when compressing on level %d wlog %d: %s", level, wlog, err)
+			}
+			if err := zw.Close(); err != nil {
+				t.Fatalf("error when closing zw on level %d wlog %d: %s", level, wlog, err)
+			}
+			zw.Release()
+
+			zr := NewReader(bytes.NewReader(bb.Bytes()))
+			plainData, err := ioutil.ReadAll(zr)
+			if err != nil {
+				t.Fatalf("cannot decompress data on level %d wlog %d: %s", level, wlog, err)
+			}
+			if !bytes.Equal(plainData, src) {
+				t.Fatalf("unexpected data obtained after decompression on level %d wlog %d; got\n%X; want\n%X", level, wlog, plainData, src)
+			}
+		}
+	}
+}
+
+func TestWriterResetWriterParams(t *testing.T) {
+	var bbOrig bytes.Buffer
+	zw := NewWriter(ioutil.Discard)
+	defer zw.Release()
+
+	for j := 0; j < 1e4; j++ {
+		if _, err := fmt.Fprintf(&bbOrig, "This is number %d ", j); err != nil {
+			t.Fatalf("error when writing data to bbOrig: %s", err)
+		}
+	}
+
+	const wlogMax = 27
+	for i := 0; i < 100; i++ {
+		var bb bytes.Buffer
+		params := WriterParams{
+			// loop WindowLog from WindowLogMin to 27
+			WindowLog:        WindowLogMin + i%(wlogMax-WindowLogMin),
+			CompressionLevel: i % 10,
+		}
+		zw.ResetWriterParams(&bb, &params)
+
+		io.Copy(zw, bytes.NewReader(bbOrig.Bytes()))
+		if err := zw.Close(); err != nil {
+			t.Fatalf("error when closing zw: %s", err)
+		}
+
+		plainData, err := Decompress(nil, bb.Bytes())
+		if err != nil {
+			t.Fatalf("cannot decompress data written with %+v: %s", params, err)
+		}
+		origData := bbOrig.Bytes()
+		if !bytes.Equal(plainData, origData) {
+			t.Fatalf("unexpected data decompressed: got\n%q; want\n%q\nlen(data)=%d, len(orig)=%d",
+				plainData, origData, len(plainData), len(origData))
+		}
+	}
+}
+
 func TestWriterMultiFrames(t *testing.T) {
 	var bb bytes.Buffer
 	var bbOrig bytes.Buffer
