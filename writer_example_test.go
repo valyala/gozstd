@@ -101,3 +101,31 @@ func ExampleWriter_Reset() {
 	// line 1
 	// line 2
 }
+
+func ExampleWriterParams() {
+
+	// Compress data to bb.
+	var bb bytes.Buffer
+	zw := NewWriterParams(&bb, WriterParams{
+		CompressionLevel: 10,
+		WindowLog:        14,
+	})
+	defer zw.Release()
+
+	for i := 0; i < 3; i++ {
+		fmt.Fprintf(zw, "line %d\n", i)
+	}
+	if err := zw.Close(); err != nil {
+		log.Fatalf("cannot close writer: %s", err)
+	}
+
+	// Decompress the data and verify it is valid.
+	plainData, err := Decompress(nil, bb.Bytes())
+	fmt.Printf("err: %v\n%s", err, plainData)
+
+	// Output:
+	// err: <nil>
+	// line 0
+	// line 1
+	// line 2
+}
