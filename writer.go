@@ -26,6 +26,7 @@ type cMemPtr *[1 << 30]byte
 type Writer struct {
 	w                io.Writer
 	compressionLevel int
+	wlog             int
 	cs               *C.ZSTD_CStream
 	cd               *CDict
 
@@ -140,14 +141,17 @@ func (zw *Writer) Reset(w io.Writer, cd *CDict, compressionLevel int) {
 	zw.w = w
 }
 
-func initCStream(cs *C.ZSTD_CStream, cd *CDict, compressionLevel int) {
-	if cd != nil {
-		result := C.ZSTD_initCStream_usingCDict(cs, cd.p)
+func initCStream(cs *C.ZSTD_CStream, params *WriterParams) {
+	if params.Dict != nil {
+		result := C.ZSTD_initCStream_usingCDict(cs, params.Dict.p)
 		ensureNoError("ZSTD_initCStream_usingCDict", result)
 	} else {
-		result := C.ZSTD_initCStream(cs, C.int(compressionLevel))
+		result := C.ZSTD_initCStream(cs, C.int(params.CompressionLevel))
 		ensureNoError("ZSTD_initCStream", result)
 	}
+
+	result := C.ZSTD_CCtx_setParameter(cs, C.ZSTD_cParameter(C.ZSTD_c_windowLog), C.int(params.WindowLog))
+	ensureNoError("ZSTD_CCtx_setParameter", result)
 }
 
 func freeCStream(v interface{}) {
