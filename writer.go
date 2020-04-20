@@ -58,7 +58,6 @@ func NewWriterLevel(w io.Writer, compressionLevel int) *Writer {
 	params := &WriterParams{
 		CompressionLevel: compressionLevel,
 	}
-
 	return newWriterParams(w, params)
 }
 
@@ -73,7 +72,6 @@ func NewWriterDict(w io.Writer, cd *CDict) *Writer {
 	params := &WriterParams{
 		Dict: cd,
 	}
-
 	return newWriterParams(w, params)
 }
 
