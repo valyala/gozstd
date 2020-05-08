@@ -14,10 +14,10 @@ import (
 func TestDecompressSmallBlockWithoutSingleSegmentFlag(t *testing.T) {
 	// See https://github.com/VictoriaMetrics/VictoriaMetrics/issues/281 for details.
 	cblockHex := "28B52FFD00007D000038C0A907DFD40300015407022B0E02"
-	dblockHexExpected := "C0A907DFD4030000000000000000000000000000000000000000000000"+
-		"00000000000000000000000000000000000000000000000000000000000000000000000"+
-		"00000000000000000000000000000000000000000000000000000000000000000000000"+
-		"00000000000000000000000000000000000000000000000000000000000000000000000"+
+	dblockHexExpected := "C0A907DFD4030000000000000000000000000000000000000000000000" +
+		"00000000000000000000000000000000000000000000000000000000000000000000000" +
+		"00000000000000000000000000000000000000000000000000000000000000000000000" +
+		"00000000000000000000000000000000000000000000000000000000000000000000000" +
 		"000000000000000000000000000000000"
 
 	cblock := mustUnhex(cblockHex)
@@ -348,6 +348,50 @@ func TestCompressDecompressMultiFrames(t *testing.T) {
 	origData := append([]byte{}, bb.Bytes()...)
 
 	cd := Compress(nil, bb.Bytes())
+	plainData, err := Decompress(nil, cd)
+	if err != nil {
+		t.Fatalf("cannot decompress big data: %s", err)
+	}
+	if !bytes.Equal(plainData, origData) {
+		t.Fatalf("unexpected data decompressed: got\n%q; want\n%q\nlen(data)=%d, len(orig)=%d",
+			plainData, origData, len(plainData), len(origData))
+	}
+}
+
+func TestCCtxSetParams(t *testing.T) {
+	ctx := NewCCtx()
+	err := ctx.SetParameter(ZSTD_c_compressionLevel, 0)
+	if err != nil {
+		t.Fatalf("cannot set parameter: compressionLevel")
+	}
+	err = ctx.SetParameter(ZSTD_c_checksumFlag, 1)
+	if err != nil {
+		t.Fatalf("cannot set parameter: checksumFlag")
+	}
+}
+
+func TestCompress2(t *testing.T) {
+	var bb bytes.Buffer
+	for bb.Len() < 3*128*1024 {
+		fmt.Fprintf(&bb, "compress/decompress big data %d, ", bb.Len())
+	}
+	origData := append([]byte{}, bb.Bytes()...)
+
+	ctx := NewCCtx()
+	err := ctx.SetParameter(ZSTD_c_compressionLevel, 0)
+	if err != nil {
+		t.Fatalf("cannot set parameter: compressionLevel")
+	}
+	err = ctx.SetParameter(ZSTD_c_checksumFlag, 1)
+	if err != nil {
+		t.Fatalf("cannot set parameter: checksumFlag")
+	}
+
+	cd, err := ctx.Compress(nil, bb.Bytes())
+	if err != nil {
+		t.Fatalf("cannot ctx.Compress: %s", err)
+	}
+
 	plainData, err := Decompress(nil, cd)
 	if err != nil {
 		t.Fatalf("cannot decompress big data: %s", err)
