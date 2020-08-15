@@ -1,11 +1,10 @@
 /**
- * Copyright (c) 2016-2020, Facebook, Inc.
+ * Copyright (c) 2016-present, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
  * LICENSE file in the root directory of this source tree) and the GPLv2 (found
  * in the COPYING file in the root directory of this source tree).
- * You may select, at your option, one of the above-listed licenses.
  */
 
 /**
@@ -43,9 +42,7 @@ static size_t roundTripTest(void *result, size_t resultCapacity,
     FUZZ_ZASSERT(ret);
     if (ret == 0) {
         FUZZ_ASSERT(resultCapacity >= srcSize);
-        if (srcSize > 0) {
-            memcpy(result, src, srcSize);
-        }
+        memcpy(result, src, srcSize);
         return srcSize;
     }
     ZSTD_decompressBegin(dctx);
@@ -69,9 +66,10 @@ int LLVMFuzzerTestOneInput(const uint8_t *src, size_t size)
     if (neededBufSize > bufSize || !cBuf || !rBuf) {
         free(cBuf);
         free(rBuf);
-        cBuf = FUZZ_malloc(neededBufSize);
-        rBuf = FUZZ_malloc(neededBufSize);
+        cBuf = malloc(neededBufSize);
+        rBuf = malloc(neededBufSize);
         bufSize = neededBufSize;
+        FUZZ_ASSERT(cBuf && rBuf);
     }
     if (!cctx) {
         cctx = ZSTD_createCCtx();
@@ -88,7 +86,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *src, size_t size)
               cLevel);
         FUZZ_ZASSERT(result);
         FUZZ_ASSERT_MSG(result == size, "Incorrect regenerated size");
-        FUZZ_ASSERT_MSG(!FUZZ_memcmp(src, rBuf, size), "Corruption!");
+        FUZZ_ASSERT_MSG(!memcmp(src, rBuf, size), "Corruption!");
     }
     FUZZ_dataProducer_free(producer);
 #ifndef STATEFUL_FUZZING

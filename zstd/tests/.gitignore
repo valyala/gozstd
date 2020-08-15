@@ -29,7 +29,26 @@ zcat
 zstdcat
 tm
 
-# test artifacts
+# Tmp test directory
+zstdtest
+speedTest
+versionsTest
+namespaceTest
+
+# Local script
+startSpeedTest
+speedTest.pid
+
+# Object files
+*.o
+*.ko
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Default result files
 dictionary
 grillResults.txt
 _*
@@ -40,29 +59,10 @@ tmp*
 result
 out
 *.zstd
-hello*
-world
-
-# Tmp test directory
-zstdtest
-speedTest
-versionsTest
-namespaceTest
-dirTest*
 
 # fuzzer
 afl
 
-# Local script
-startSpeedTest
-speedTest.pid
+# Misc files
 *.bat
-
-# Generic Object files
-*.o
-*.ko
-
-# Generic Executables
-*.exe
-*.out
-*.app
+dirTest*

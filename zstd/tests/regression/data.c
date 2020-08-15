@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2020, Facebook, Inc.
+ * Copyright (c) 2016-present, Yann Collet, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -173,10 +173,21 @@ void data_buffer_free(data_buffer_t buffer) {
  * data filenames helpers.
  */
 
-FileNamesTable* data_filenames_get(data_t const* data)
-{
-    char const* const path = data->data.path;
-    return UTIL_createExpandedFNT(&path, 1, 0 /* followLinks */ );
+data_filenames_t data_filenames_get(data_t const* data) {
+    data_filenames_t filenames = {.buffer = NULL, .size = 0};
+    char const* path = data->data.path;
+
+    filenames.filenames = UTIL_createFileList(
+        &path,
+        1,
+        &filenames.buffer,
+        &filenames.size,
+        /* followLinks */ 0);
+    return filenames;
+}
+
+void data_filenames_free(data_filenames_t filenames) {
+    UTIL_freeFileList(filenames.filenames, filenames.buffer);
 }
 
 /**
@@ -185,33 +196,26 @@ FileNamesTable* data_filenames_get(data_t const* data)
 
 data_buffers_t data_buffers_get(data_t const* data) {
     data_buffers_t buffers = {.size = 0};
-    FileNamesTable* const filenames = data_filenames_get(data);
-    if (filenames == NULL) return buffers;
-    if (filenames->tableSize == 0) {
-        UTIL_freeFileNamesTable(filenames);
+    data_filenames_t filenames = data_filenames_get(data);
+    if (filenames.size == 0)
         return buffers;
-    }
 
     data_buffer_t* buffersPtr =
-        (data_buffer_t*)malloc(filenames->tableSize * sizeof(*buffersPtr));
-    if (buffersPtr == NULL) {
-        UTIL_freeFileNamesTable(filenames);
+        (data_buffer_t*)malloc(filenames.size * sizeof(data_buffer_t));
+    if (buffersPtr == NULL)
         return buffers;
-    }
     buffers.buffers = (data_buffer_t const*)buffersPtr;
-    buffers.size = filenames->tableSize;
+    buffers.size = filenames.size;
 
-    for (size_t i = 0; i < filenames->tableSize; ++i) {
-        buffersPtr[i] = data_buffer_read(filenames->fileNames[i]);
+    for (size_t i = 0; i < filenames.size; ++i) {
+        buffersPtr[i] = data_buffer_read(filenames.filenames[i]);
         if (buffersPtr[i].data == NULL) {
             data_buffers_t const kEmptyBuffer = {};
             data_buffers_free(buffers);
-            UTIL_freeFileNamesTable(filenames);
             return kEmptyBuffer;
         }
     }
 
-    UTIL_freeFileNamesTable(filenames);
     return buffers;
 }
 

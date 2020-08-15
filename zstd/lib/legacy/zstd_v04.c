@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2020, Yann Collet, Facebook, Inc.
+ * Copyright (c) 2016-present, Yann Collet, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -16,7 +16,7 @@
 #include <string.h>    /* memcpy */
 
 #include "zstd_v04.h"
-#include "../common/error_private.h"
+#include "error_private.h"
 
 
 /* ******************************************************************
@@ -161,7 +161,7 @@ MEM_STATIC void MEM_write16(void* memPtr, U16 value)
     memcpy(memPtr, &value, sizeof(value));
 }
 
-#endif /* MEM_FORCE_MEMORY_ACCESS */
+#endif // MEM_FORCE_MEMORY_ACCESS
 
 
 MEM_STATIC U16 MEM_readLE16(const void* memPtr)
@@ -2603,9 +2603,7 @@ static size_t ZSTD_getcBlockSize(const void* src, size_t srcSize, blockPropertie
 static size_t ZSTD_copyRawBlock(void* dst, size_t maxDstSize, const void* src, size_t srcSize)
 {
     if (srcSize > maxDstSize) return ERROR(dstSize_tooSmall);
-    if (srcSize > 0) {
-        memcpy(dst, src, srcSize);
-    }
+    memcpy(dst, src, srcSize);
     return srcSize;
 }
 
@@ -3010,10 +3008,8 @@ static size_t ZSTD_decompressSequences(
             size_t lastLLSize = litEnd - litPtr;
             if (litPtr > litEnd) return ERROR(corruption_detected);
             if (op+lastLLSize > oend) return ERROR(dstSize_tooSmall);
-            if (lastLLSize > 0) {
-                if (op != litPtr) memcpy(op, litPtr, lastLLSize);
-                op += lastLLSize;
-            }
+            if (op != litPtr) memcpy(op, litPtr, lastLLSize);
+            op += lastLLSize;
         }
     }
 
@@ -3411,9 +3407,7 @@ static size_t ZBUFF_decompressWithDictionary(ZBUFF_DCtx* zbc, const void* src, s
 static size_t ZBUFF_limitCopy(void* dst, size_t maxDstSize, const void* src, size_t srcSize)
 {
     size_t length = MIN(maxDstSize, srcSize);
-    if (length > 0) {
-        memcpy(dst, src, length);
-    }
+    memcpy(dst, src, length);
     return length;
 }
 

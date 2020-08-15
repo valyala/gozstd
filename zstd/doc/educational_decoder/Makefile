@@ -1,11 +1,10 @@
 # ################################################################
-# Copyright (c) 2016-2020, Yann Collet, Facebook, Inc.
+# Copyright (c) 2016-present, Yann Collet, Facebook, Inc.
 # All rights reserved.
 #
 # This source code is licensed under both the BSD-style license (found in the
 # LICENSE file in the root directory of this source tree) and the GPLv2 (found
 # in the COPYING file in the root directory of this source tree).
-# You may select, at your option, one of the above-listed licenses.
 # ################################################################
 
 ZSTD ?= zstd   # note: requires zstd installation on local system
@@ -37,7 +36,7 @@ harness: $(HARNESS_FILES)
 	$(CC) $(FLAGS) $^ -o $@
 
 clean:
-	@$(RM) harness *.o
+	@$(RM) harness
 	@$(RM) -rf harness.dSYM  # MacOS specific
 
 test: harness
@@ -60,3 +59,4 @@ test: harness
 	@./harness tmp.zst tmp dictionary
 	@$(DIFF) -s tmp README.md
 	@$(RM) tmp* dictionary
+	@$(MAKE) clean

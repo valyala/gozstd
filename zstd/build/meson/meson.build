@@ -68,7 +68,6 @@ zstd_docdir = join_paths(zstd_datadir, 'doc', meson.project_name())
 # Built-in options
 use_debug = get_option('debug')
 buildtype = get_option('buildtype')
-default_library_type = get_option('default_library')
 
 # Custom options
 debug_level = get_option('debug_level')
@@ -122,7 +121,7 @@ elif cc_id == compiler_msvc
   if use_multi_thread
     msvc_compile_flags += '/MP'
   endif
-  if use_static_runtime
+  if enable_static_runtime
     msvc_compile_flags += '/MT'
   endif
   add_project_arguments(msvc_compile_flags, language: ['c', 'cpp'])

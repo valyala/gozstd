@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2020, Yann Collet, Facebook, Inc.
+ * Copyright (c) 2016-present, Yann Collet, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -30,13 +30,13 @@
 
 #include "timefn.h"      /* UTIL_time_t */
 #include "benchfn.h"
-#include "../lib/common/mem.h"
+#include "mem.h"
 #define ZSTD_STATIC_LINKING_ONLY
-#include "../lib/zstd.h"
+#include "zstd.h"
 #include "datagen.h"     /* RDG_genBuffer */
-#include "../lib/common/xxhash.h"
+#include "xxhash.h"
 #include "benchzstd.h"
-#include "../lib/common/zstd_errors.h"
+#include "zstd_errors.h"
 
 
 /* *************************************
@@ -375,6 +375,7 @@ BMK_benchMemAdvancedNoAlloc(
                 resPtr += thisBlockSize;
                 remaining -= thisBlockSize;
                 if (adv->mode == BMK_decodeOnly) {
+                    assert(nbBlocks==0);
                     cSizes[nbBlocks] = thisBlockSize;
                     benchResult.cSize = thisBlockSize;
                 }
@@ -482,7 +483,7 @@ BMK_benchMemAdvancedNoAlloc(
                 {   int const ratioAccuracy = (ratio < 10.) ? 3 : 2;
                     DISPLAYLEVEL(2, "%2s-%-17.17s :%10u ->%10u (%5.*f),%6.*f MB/s ,%6.1f MB/s \r",
                             marks[markNb], displayName,
-                            (unsigned)srcSize, (unsigned)cSize,
+                            (unsigned)srcSize, (unsigned)benchResult.cSize,
                             ratioAccuracy, ratio,
                             benchResult.cSpeed < (10 MB) ? 2 : 1, (double)benchResult.cSpeed / MB_UNIT,
                             (double)benchResult.dSpeed / MB_UNIT);

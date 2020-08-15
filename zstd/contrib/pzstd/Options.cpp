@@ -337,19 +337,23 @@ Options::Status Options::parse(int argc, const char **argv) {
 
   // Translate input files/directories into files to (de)compress
   if (recursive) {
-    FileNamesTable* const files = UTIL_createExpandedFNT(localInputFiles.data(), localInputFiles.size(), followLinks);
+    char *scratchBuffer = nullptr;
+    unsigned numFiles = 0;
+    const char **files =
+        UTIL_createFileList(localInputFiles.data(), localInputFiles.size(),
+                            &scratchBuffer, &numFiles, followLinks);
     if (files == nullptr) {
       std::fprintf(stderr, "Error traversing directories\n");
       return Status::Failure;
     }
     auto guard =
-        makeScopeGuard([&] { UTIL_freeFileNamesTable(files); });
-    if (files->tableSize == 0) {
+        makeScopeGuard([&] { UTIL_freeFileList(files, scratchBuffer); });
+    if (numFiles == 0) {
       std::fprintf(stderr, "No files found\n");
       return Status::Failure;
     }
-    inputFiles.resize(files->tableSize);
-    std::copy(files->fileNames, files->fileNames + files->tableSize, inputFiles.begin());
+    inputFiles.resize(numFiles);
+    std::copy(files, files + numFiles, inputFiles.begin());
   } else {
     inputFiles.resize(localInputFiles.size());
     std::copy(localInputFiles.begin(), localInputFiles.end(),
