@@ -357,3 +357,94 @@ func TestCompressDecompressMultiFrames(t *testing.T) {
 			plainData, origData, len(plainData), len(origData))
 	}
 }
+
+func TestCCtxSetParams(t *testing.T) {
+	ctx := NewCCtx()
+	err := ctx.SetParameter(ZSTD_c_compressionLevel, 0)
+	if err != nil {
+		t.Fatalf("cannot set parameter: compressionLevel")
+	}
+	err = ctx.SetParameter(ZSTD_c_checksumFlag, 1)
+	if err != nil {
+		t.Fatalf("cannot set parameter: checksumFlag")
+	}
+}
+
+func TestCCtxReset(t *testing.T) {
+	ctx := NewCCtx()
+	err := ctx.SetParameter(ZSTD_c_compressionLevel, 7)
+	if err != nil {
+		t.Fatalf("cannot set parameter: compressionLevel")
+	}
+
+	err = ctx.Reset(ZSTD_reset_parameters)
+	if err != nil {
+		t.Fatalf("cannot reset context")
+	}
+}
+
+func TestCCtxPledgedSize(t *testing.T) {
+	ctx := NewCCtx()
+	err := ctx.SetPledgedSrcSize(3 * 128 * 1024)
+	if err != nil {
+		t.Fatalf("cannot set parameter: compressionLevel")
+	}
+
+	testCompress2(ctx, t)
+}
+
+func TestCompress2(t *testing.T) {
+	var bb bytes.Buffer
+	for bb.Len() < 3*128*1024 {
+		fmt.Fprintf(&bb, "compress/decompress big data %d, ", bb.Len())
+	}
+
+	ctx := NewCCtx()
+	err := ctx.SetParameter(ZSTD_c_compressionLevel, 0)
+	if err != nil {
+		t.Fatalf("cannot set parameter: compressionLevel")
+	}
+	err = ctx.SetParameter(ZSTD_c_checksumFlag, 1)
+	if err != nil {
+		t.Fatalf("cannot set parameter: checksumFlag")
+	}
+
+	testCompress2(ctx, t)
+}
+
+func testCompress2(ctx *CCtx, t *testing.T) {
+	var bb bytes.Buffer
+	for bb.Len() < 3*128*1024 {
+		fmt.Fprintf(&bb, "compress/decompress big data %d, ", bb.Len())
+	}
+	origData := append([]byte{}, bb.Bytes()...)
+
+	cd, err := ctx.Compress(nil, bb.Bytes())
+	if err != nil {
+		t.Fatalf("cannot ctx.Compress: %s", err)
+	}
+
+	plainData, err := Decompress(nil, cd)
+	if err != nil {
+		t.Fatalf("cannot decompress big data: %s", err)
+	}
+	if !bytes.Equal(plainData, origData) {
+		t.Fatalf("unexpected data decompressed: got\n%q; want\n%q\nlen(data)=%d, len(orig)=%d",
+			plainData, origData, len(plainData), len(origData))
+	}
+
+	prefix := []byte("foobaraaa")
+	fmt.Printf("prefix: %s\n", prefix)
+	// Verify prefixed compression.
+	csp, err := ctx.Compress(prefix, bb.Bytes())
+	if err != nil {
+		t.Fatalf("Errorr compressing with prefixed output buffer: %s", err)
+	}
+	if string(csp[:len(prefix)]) != string(prefix) {
+		t.Fatalf("unexpected prefix in the compressed result: %X; want %X", csp[:len(prefix)], prefix)
+	}
+	csp = csp[len(prefix):]
+	if string(csp) != string(cd) {
+		t.Fatalf("unexpected prefixed cd\n%X; want\n%X", csp, cd)
+	}
+}
