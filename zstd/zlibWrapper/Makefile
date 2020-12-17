@@ -18,10 +18,12 @@ EXAMPLE_PATH = examples
 PROGRAMS_PATH = ../programs
 TEST_FILE = ../doc/zstd_compression_format.md
 
+VPATH = $(PROGRAMS_PATH)
+
 CPPFLAGS += -DXXH_NAMESPACE=ZSTD_ -I$(ZLIB_PATH) -I$(PROGRAMS_PATH)       \
             -I$(ZSTDLIBDIR) -I$(ZSTDLIBDIR)/common -I$(ZLIBWRAPPER_PATH)
-STDFLAGS  = -std=c90 -pedantic -Wno-long-long -Wno-variadic-macros -Wc++-compat \
-            -DNO_snprintf -DNO_vsnprintf  # strict ISO C90 is missing these prototypes
+STDFLAGS  = -std=c89 -pedantic -Wno-long-long -Wno-variadic-macros -Wc++-compat \
+            -DNO_snprintf -DNO_vsnprintf  # strict ANSI C89 is missing these prototypes
 DEBUGFLAGS= -Wall -Wextra -Wcast-qual -Wcast-align -Wshadow -Wswitch-enum \
             -Wdeclaration-after-statement -Wstrict-prototypes -Wundef     \
             -Wstrict-aliasing=1
@@ -95,7 +97,7 @@ fitblk: $(EXAMPLE_PATH)/fitblk.o zstd_zlibwrapper.o $(ZSTDLIBRARY)
 fitblk_zstd: $(EXAMPLE_PATH)/fitblk.o zstdTurnedOn_zlibwrapper.o $(ZSTDLIBRARY)
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $^ $(ZLIB_LIBRARY) -o $@
 
-zwrapbench: $(EXAMPLE_PATH)/zwrapbench.o zstd_zlibwrapper.o $(PROGRAMS_PATH)/util.o $(PROGRAMS_PATH)/timefn.o $(PROGRAMS_PATH)/datagen.o $(ZSTDLIBRARY)
+zwrapbench: $(EXAMPLE_PATH)/zwrapbench.o zstd_zlibwrapper.o util.o timefn.o datagen.o $(ZSTDLIBRARY)
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $^ $(ZLIB_LIBRARY) -o $@
 
 

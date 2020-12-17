@@ -30,6 +30,7 @@ libzstd_sources = [join_paths(zstd_rootdir, 'lib/common/entropy_common.c'),
   join_paths(zstd_rootdir, 'lib/compress/zstd_compress.c'),
   join_paths(zstd_rootdir, 'lib/compress/zstd_compress_literals.c'),
   join_paths(zstd_rootdir, 'lib/compress/zstd_compress_sequences.c'),
+  join_paths(zstd_rootdir, 'lib/compress/zstd_compress_superblock.c'),
   join_paths(zstd_rootdir, 'lib/compress/zstdmt_compress.c'),
   join_paths(zstd_rootdir, 'lib/compress/zstd_fast.c'),
   join_paths(zstd_rootdir, 'lib/compress/zstd_double_fast.c'),
@@ -126,6 +127,5 @@ pkgconfig.generate(libzstd,
   url: 'http://www.zstd.net/')
 
 install_headers(join_paths(zstd_rootdir, 'lib/zstd.h'),
-  join_paths(zstd_rootdir, 'lib/deprecated/zbuff.h'),
   join_paths(zstd_rootdir, 'lib/dictBuilder/zdict.h'),
   join_paths(zstd_rootdir, 'lib/common/zstd_errors.h'))

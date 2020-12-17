@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-present, Yann Collet, Facebook, Inc.
+ * Copyright (c) 2016-2020, Yann Collet, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -39,6 +39,7 @@ static void compressFile_orDie(const char* fname, const char* outName, int cLeve
      */
     CHECK_ZSTD( ZSTD_CCtx_setParameter(cctx, ZSTD_c_compressionLevel, cLevel) );
     CHECK_ZSTD( ZSTD_CCtx_setParameter(cctx, ZSTD_c_checksumFlag, 1) );
+    ZSTD_CCtx_setParameter(cctx, ZSTD_c_nbWorkers, 4);
 
     /* This loop read from the input file, compresses that entire chunk,
      * and writes all output produced to the output file.
