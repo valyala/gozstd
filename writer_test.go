@@ -227,6 +227,7 @@ func TestWriterWindowLog(t *testing.T) {
 			if !bytes.Equal(plainData, src) {
 				t.Fatalf("unexpected data obtained after decompression on level %d wlog %d; got\n%X; want\n%X", level, wlog, plainData, src)
 			}
+			zr.Release()
 		}
 	}
 }
@@ -432,7 +433,9 @@ func testWriterExt(zw *Writer, s string) error {
 func TestWriterBig(t *testing.T) {
 	pr, pw := io.Pipe()
 	zw := NewWriter(pw)
+	defer zw.Release()
 	zr := NewReader(pr)
+	defer zr.Release()
 
 	doneCh := make(chan error)
 	var writtenBB bytes.Buffer
