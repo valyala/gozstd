@@ -7,29 +7,27 @@ package gozstd
 #include "zstd.h"
 #include "zstd_errors.h"
 
-#include <stdint.h>  // for uintptr_t
-
 // The following *_wrapper functions allow avoiding memory allocations
 // durting calls from Go.
 // See https://github.com/golang/go/issues/24450 .
 
-static size_t ZSTD_compressCCtx_wrapper(uintptr_t ctx, uintptr_t dst, size_t dstCapacity, uintptr_t src, size_t srcSize, int compressionLevel) {
-    return ZSTD_compressCCtx((ZSTD_CCtx*)ctx, (void*)dst, dstCapacity, (const void*)src, srcSize, compressionLevel);
+static size_t ZSTD_compressCCtx_wrapper(void *ctx, void *dst, size_t dstCapacity, const void *src, size_t srcSize, int compressionLevel) {
+    return ZSTD_compressCCtx((ZSTD_CCtx*)ctx, dst, dstCapacity, src, srcSize, compressionLevel);
 }
 
-static size_t ZSTD_compress_usingCDict_wrapper(uintptr_t ctx, uintptr_t dst, size_t dstCapacity, uintptr_t src, size_t srcSize, uintptr_t cdict) {
+static size_t ZSTD_compress_usingCDict_wrapper(void *ctx, void *dst, size_t dstCapacity, void *src, size_t srcSize, void *cdict) {
     return ZSTD_compress_usingCDict((ZSTD_CCtx*)ctx, (void*)dst, dstCapacity, (const void*)src, srcSize, (const ZSTD_CDict*)cdict);
 }
 
-static size_t ZSTD_decompressDCtx_wrapper(uintptr_t ctx, uintptr_t dst, size_t dstCapacity, uintptr_t src, size_t srcSize) {
+static size_t ZSTD_decompressDCtx_wrapper(void *ctx, void *dst, size_t dstCapacity, void *src, size_t srcSize) {
     return ZSTD_decompressDCtx((ZSTD_DCtx*)ctx, (void*)dst, dstCapacity, (const void*)src, srcSize);
 }
 
-static size_t ZSTD_decompress_usingDDict_wrapper(uintptr_t ctx, uintptr_t dst, size_t dstCapacity, uintptr_t src, size_t srcSize, uintptr_t ddict) {
+static size_t ZSTD_decompress_usingDDict_wrapper(void *ctx, void *dst, size_t dstCapacity, void *src, size_t srcSize, void *ddict) {
     return ZSTD_decompress_usingDDict((ZSTD_DCtx*)ctx, (void*)dst, dstCapacity, (const void*)src, srcSize, (const ZSTD_DDict*)ddict);
 }
 
-static unsigned long long ZSTD_getFrameContentSize_wrapper(uintptr_t src, size_t srcSize) {
+static unsigned long long ZSTD_getFrameContentSize_wrapper(void *src, size_t srcSize) {
     return ZSTD_getFrameContentSize((const void*)src, srcSize);
 }
 */
@@ -38,6 +36,7 @@ import "C"
 import (
 	"fmt"
 	"io"
+	"reflect"
 	"runtime"
 	"sync"
 	"unsafe"
@@ -147,34 +146,37 @@ func compress(cctx, cctxDict *cctxWrapper, dst, src []byte, cd *CDict, compressi
 }
 
 func compressInternal(cctx, cctxDict *cctxWrapper, dst, src []byte, cd *CDict, compressionLevel int, mustSucceed bool) C.size_t {
+	dstHdr := (*reflect.SliceHeader)(unsafe.Pointer(&dst))
+	srcHdr := (*reflect.SliceHeader)(unsafe.Pointer(&src))
+
 	if cd != nil {
 		result := C.ZSTD_compress_usingCDict_wrapper(
-			C.uintptr_t(uintptr(unsafe.Pointer(cctxDict.cctx))),
-			C.uintptr_t(uintptr(unsafe.Pointer(&dst[0]))),
+			unsafe.Pointer(cctxDict.cctx),
+			unsafe.Pointer(dstHdr.Data),
 			C.size_t(cap(dst)),
-			C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))),
+			unsafe.Pointer(srcHdr.Data),
 			C.size_t(len(src)),
-			C.uintptr_t(uintptr(unsafe.Pointer(cd.p))))
+			unsafe.Pointer(cd.p))
 		// Prevent from GC'ing of dst and src during CGO call above.
 		runtime.KeepAlive(dst)
 		runtime.KeepAlive(src)
 		if mustSucceed {
-			ensureNoError("ZSTD_compress_usingCDict_wrapper", result)
+			ensureNoError("ZSTD_compress_usingCDict", result)
 		}
 		return result
 	}
 	result := C.ZSTD_compressCCtx_wrapper(
-		C.uintptr_t(uintptr(unsafe.Pointer(cctx.cctx))),
-		C.uintptr_t(uintptr(unsafe.Pointer(&dst[0]))),
+		unsafe.Pointer(cctx.cctx),
+		unsafe.Pointer(dstHdr.Data),
 		C.size_t(cap(dst)),
-		C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))),
+		unsafe.Pointer(srcHdr.Data),
 		C.size_t(len(src)),
 		C.int(compressionLevel))
 	// Prevent from GC'ing of dst and src during CGO call above.
 	runtime.KeepAlive(dst)
 	runtime.KeepAlive(src)
 	if mustSucceed {
-		ensureNoError("ZSTD_compressCCtx_wrapper", result)
+		ensureNoError("ZSTD_compressCCtx", result)
 	}
 	return result
 }
@@ -254,10 +256,8 @@ func decompress(dctx, dctxDict *dctxWrapper, dst, src []byte, dd *DDict) ([]byte
 	}
 
 	// Slow path - resize dst to fit decompressed data.
-	decompressBound := int(C.ZSTD_getFrameContentSize_wrapper(
-		C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))), C.size_t(len(src))))
-	// Prevent from GC'ing of src during CGO call above.
-	runtime.KeepAlive(src)
+	srcHdr := (*reflect.SliceHeader)(unsafe.Pointer(&src))
+	decompressBound := int(C.ZSTD_getFrameContentSize_wrapper(unsafe.Pointer(srcHdr.Data), C.size_t(len(src))))
 	switch uint64(decompressBound) {
 	case uint64(C.ZSTD_CONTENTSIZE_UNKNOWN):
 		return streamDecompress(dst, src, dd)
@@ -287,24 +287,28 @@ func decompress(dctx, dctxDict *dctxWrapper, dst, src []byte, dd *DDict) ([]byte
 }
 
 func decompressInternal(dctx, dctxDict *dctxWrapper, dst, src []byte, dd *DDict) C.size_t {
-	var n C.size_t
+	var (
+		dstHdr = (*reflect.SliceHeader)(unsafe.Pointer(&dst))
+		srcHdr = (*reflect.SliceHeader)(unsafe.Pointer(&src))
+		n      C.size_t
+	)
 	if dd != nil {
 		n = C.ZSTD_decompress_usingDDict_wrapper(
-			C.uintptr_t(uintptr(unsafe.Pointer(dctxDict.dctx))),
-			C.uintptr_t(uintptr(unsafe.Pointer(&dst[0]))),
+			unsafe.Pointer(dctxDict.dctx),
+			unsafe.Pointer(dstHdr.Data),
 			C.size_t(cap(dst)),
-			C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))),
+			unsafe.Pointer(srcHdr.Data),
 			C.size_t(len(src)),
-			C.uintptr_t(uintptr(unsafe.Pointer(dd.p))))
+			unsafe.Pointer(dd.p))
 	} else {
 		n = C.ZSTD_decompressDCtx_wrapper(
-			C.uintptr_t(uintptr(unsafe.Pointer(dctx.dctx))),
-			C.uintptr_t(uintptr(unsafe.Pointer(&dst[0]))),
+			unsafe.Pointer(dctx.dctx),
+			unsafe.Pointer(dstHdr.Data),
 			C.size_t(cap(dst)),
-			C.uintptr_t(uintptr(unsafe.Pointer(&src[0]))),
+			unsafe.Pointer(srcHdr.Data),
 			C.size_t(len(src)))
 	}
-	// Prevent from GC'ing of dst and src during CGO calls above.
+	// Prevent from GC'ing of dst and src during CGO call above.
 	runtime.KeepAlive(dst)
 	runtime.KeepAlive(src)
 	return n
@@ -317,13 +321,17 @@ func errStr(result C.size_t) string {
 }
 
 func ensureNoError(funcName string, result C.size_t) {
-	if int(result) >= 0 {
-		// Fast path - avoid calling C function.
-		return
-	}
-	if C.ZSTD_getErrorCode(result) != 0 {
+	if zstdIsError(result) {
 		panic(fmt.Errorf("BUG: unexpected error in %s: %s", funcName, errStr(result)))
 	}
+}
+
+func zstdIsError(result C.size_t) bool {
+	if int(result) >= 0 {
+		// Fast path - avoid calling C function.
+		return false
+	}
+	return C.ZSTD_isError(result) != 0
 }
 
 func streamDecompress(dst, src []byte, dd *DDict) ([]byte, error) {
