@@ -1,14 +1,14 @@
 /**
- * \file zstd.c
- * Single-file Zstandard library.
+ * \file zstddeclib.c
+ * Single-file Zstandard decompressor.
  *
  * Generate using:
  * \code
- *	combine.sh -r ../../lib -o zstd.c zstd-in.c
+ *	combine.sh -r ../../lib -o zstddeclib.c zstddeclib-in.c
  * \endcode
  */
 /*
- * Copyright (c) 2016-2020, Yann Collet, Facebook, Inc.
+ * Copyright (c) 2016-2021, Yann Collet, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under both the BSD-style license (found in the
@@ -17,7 +17,7 @@
  * You may select, at your option, one of the above-listed licenses.
  */
 /*
- * Settings to bake for the single library file.
+ * Settings to bake for the standalone decompressor.
  *
  * Note: It's important that none of these affects 'zstd.h' (only the
  * implementation files we're amalgamating).
@@ -27,8 +27,6 @@
  *
  * Note: the undefs for xxHash allow Zstd's implementation to coinside with with
  * standalone xxHash usage (with global defines).
- *
- * Note: multithreading is enabled for all platforms apart from Emscripten.
  */
 #define DEBUGLEVEL 0
 #define MEM_MODULE
@@ -39,45 +37,20 @@
 #undef  XXH_INLINE_ALL
 #define XXH_INLINE_ALL
 #define ZSTD_LEGACY_SUPPORT 0
-#ifndef __EMSCRIPTEN__
-#define ZSTD_MULTITHREAD
-#endif
+#define ZSTD_STRIP_ERROR_STRINGS
+#define ZSTD_TRACE 0
 
 /* Include zstd_deps.h first with all the options we need enabled. */
 #define ZSTD_DEPS_NEED_MALLOC
-#define ZSTD_DEPS_NEED_MATH64
 #include "common/zstd_deps.h"
 
 #include "common/debug.c"
 #include "common/entropy_common.c"
 #include "common/error_private.c"
 #include "common/fse_decompress.c"
-#include "common/threading.c"
-#include "common/pool.c"
 #include "common/zstd_common.c"
-
-#include "compress/fse_compress.c"
-#include "compress/hist.c"
-#include "compress/huf_compress.c"
-#include "compress/zstd_compress_literals.c"
-#include "compress/zstd_compress_sequences.c"
-#include "compress/zstd_compress_superblock.c"
-#include "compress/zstd_compress.c"
-#include "compress/zstd_double_fast.c"
-#include "compress/zstd_fast.c"
-#include "compress/zstd_lazy.c"
-#include "compress/zstd_ldm.c"
-#include "compress/zstd_opt.c"
-#ifdef ZSTD_MULTITHREAD
-#include "compress/zstdmt_compress.c"
-#endif
 
 #include "decompress/huf_decompress.c"
 #include "decompress/zstd_ddict.c"
 #include "decompress/zstd_decompress.c"
 #include "decompress/zstd_decompress_block.c"
-
-#include "dictBuilder/cover.c"
-#include "dictBuilder/divsufsort.c"
-#include "dictBuilder/fastcover.c"
-#include "dictBuilder/zdict.c"

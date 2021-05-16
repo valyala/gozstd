@@ -1,5 +1,5 @@
 # ################################################################
-# Copyright (c) 2015-2020, Yann Collet, Facebook, Inc.
+# Copyright (c) 2015-2021, Yann Collet, Facebook, Inc.
 # All rights reserved.
 #
 # This source code is licensed under both the BSD-style license (found in the
@@ -48,7 +48,7 @@ allmost: allzstd zlibwrapper
 
 # skip zwrapper, can't build that on alternate architectures without the proper zlib installed
 .PHONY: allzstd
-allzstd: lib-all
+allzstd: lib
 	$(Q)$(MAKE) -C $(PRGDIR) all
 	$(Q)$(MAKE) -C $(TESTDIR) all
 
@@ -57,9 +57,8 @@ all32:
 	$(MAKE) -C $(PRGDIR) zstd32
 	$(MAKE) -C $(TESTDIR) all32
 
-.PHONY: lib lib-release libzstd.a
-lib-all : lib
-lib lib-release lib-all :
+.PHONY: lib lib-release lib-mt lib-nomt
+lib lib-release lib-mt lib-nomt:
 	$(Q)$(MAKE) -C $(ZSTDDIR) $@
 
 .PHONY: zstd zstd-release
@@ -123,8 +122,8 @@ contrib: lib
 	$(MAKE) -C contrib/seekable_format/examples all
 	$(MAKE) -C contrib/seekable_format/tests test
 	$(MAKE) -C contrib/largeNbDicts all
-	cd contrib/single_file_libs/ ; ./build_decoder_test.sh
-	cd contrib/single_file_libs/ ; ./build_library_test.sh
+	cd build/single_file_libs/ ; ./build_decoder_test.sh
+	cd build/single_file_libs/ ; ./build_library_test.sh
 
 .PHONY: cleanTabs
 cleanTabs:
@@ -152,7 +151,6 @@ clean:
 ifneq (,$(filter $(shell uname),Linux Darwin GNU/kFreeBSD GNU OpenBSD FreeBSD DragonFly NetBSD MSYS_NT Haiku))
 
 HOST_OS = POSIX
-CMAKE_PARAMS = -DZSTD_BUILD_CONTRIB:BOOL=ON -DZSTD_BUILD_STATIC:BOOL=ON -DZSTD_BUILD_TESTS:BOOL=ON -DZSTD_ZLIB_SUPPORT:BOOL=ON -DZSTD_LZMA_SUPPORT:BOOL=ON -DCMAKE_BUILD_TYPE=Release
 
 HAVE_COLORNEVER = $(shell echo a | egrep --color=never a > /dev/null 2> /dev/null && echo 1 || echo 0)
 EGREP_OPTIONS ?=
@@ -180,7 +178,7 @@ list:
 	    done \
 	} | column -t -s $$'\t'
 
-.PHONY: install armtest usan asan uasan
+.PHONY: install armtest usan asan uasan msan asan32
 install:
 	$(Q)$(MAKE) -C $(ZSTDDIR) $@
 	$(Q)$(MAKE) -C $(PRGDIR) $@
@@ -194,22 +192,19 @@ uninstall:
 travis-install:
 	$(MAKE) install PREFIX=~/install_test_dir
 
-.PHONY: gcc5build
+.PHONY: gcc5build gcc6build gcc7build clangbuild m32build armbuild aarch64build ppcbuild ppc64build
 gcc5build: clean
 	gcc-5 -v
 	CC=gcc-5 $(MAKE) all MOREFLAGS="-Werror"
 
-.PHONY: gcc6build
 gcc6build: clean
 	gcc-6 -v
 	CC=gcc-6 $(MAKE) all MOREFLAGS="-Werror"
 
-.PHONY: gcc7build
 gcc7build: clean
 	gcc-7 -v
 	CC=gcc-7 $(MAKE) all MOREFLAGS="-Werror"
 
-.PHONY: clangbuild
 clangbuild: clean
 	clang -v
 	CXX=clang++ CC=clang CFLAGS="-Werror -Wconversion -Wno-sign-conversion -Wdocumentation" $(MAKE) all
@@ -225,11 +220,12 @@ aarch64build: clean
 	CC=aarch64-linux-gnu-gcc CFLAGS="-Werror" $(MAKE) allzstd
 
 ppcbuild: clean
-	CC=powerpc-linux-gnu-gcc CFLAGS="-m32 -Wno-attributes -Werror" $(MAKE) allzstd
+	CC=powerpc-linux-gnu-gcc CFLAGS="-m32 -Wno-attributes -Werror" $(MAKE) -j allzstd
 
 ppc64build: clean
-	CC=powerpc-linux-gnu-gcc CFLAGS="-m64 -Werror" $(MAKE) allzstd
+	CC=powerpc-linux-gnu-gcc CFLAGS="-m64 -Werror" $(MAKE) -j allzstd
 
+.PHONY: armfuzz aarch64fuzz ppcfuzz ppc64fuzz
 armfuzz: clean
 	CC=arm-linux-gnueabi-gcc QEMU_SYS=qemu-arm-static MOREFLAGS="-static" FUZZER_FLAGS=--no-big-tests $(MAKE) -C $(TESTDIR) fuzztest
 
@@ -243,7 +239,7 @@ ppcfuzz: clean
 ppc64fuzz: clean
 	CC=powerpc-linux-gnu-gcc QEMU_SYS=qemu-ppc64-static MOREFLAGS="-m64 -static" FUZZER_FLAGS=--no-big-tests $(MAKE) -C $(TESTDIR) fuzztest
 
-.PHONY: cxxtest
+.PHONY: cxxtest gcc5test gcc6test armtest aarch64test ppctest ppc64test
 cxxtest: CXXFLAGS += -Wall -Wextra -Wundef -Wshadow -Wcast-align -Werror
 cxxtest: clean
 	$(MAKE) -C $(PRGDIR) all CC="$(CXX) -Wno-deprecated" CFLAGS="$(CXXFLAGS)"   # adding -Wno-deprecated to avoid clang++ warning on dealing with C files directly
@@ -272,6 +268,7 @@ ppc64test: clean
 	$(MAKE) -C $(TESTDIR) datagen   # use native, faster
 	$(MAKE) -C $(TESTDIR) test CC=powerpc-linux-gnu-gcc QEMU_SYS=qemu-ppc64-static ZSTDRTTEST= MOREFLAGS="-m64 -static" FUZZER_FLAGS=--no-big-tests
 
+.PHONY: arm-ppc-compilation
 arm-ppc-compilation:
 	$(MAKE) -C $(PRGDIR) clean zstd CC=arm-linux-gnueabi-gcc QEMU_SYS=qemu-arm-static ZSTDRTTEST= MOREFLAGS="-Werror -static"
 	$(MAKE) -C $(PRGDIR) clean zstd CC=aarch64-linux-gnu-gcc QEMU_SYS=qemu-aarch64-static ZSTDRTTEST= MOREFLAGS="-Werror -static"
@@ -287,12 +284,10 @@ uasanregressiontest:
 msanregressiontest:
 	$(MAKE) -C $(FUZZDIR) regressiontest CC=clang CXX=clang++ CFLAGS="-O3 -fsanitize=memory" CXXFLAGS="-O3 -fsanitize=memory"
 
-# run UBsan with -fsanitize-recover=signed-integer-overflow
-# due to a bug in UBsan when doing pointer subtraction
-# https://gcc.gnu.org/bugzilla/show_bug.cgi?id=63303
-
+# run UBsan with -fsanitize-recover=pointer-overflow
+# this only works with recent compilers such as gcc 8+
 usan: clean
-	$(MAKE) test CC=clang MOREFLAGS="-g -fno-sanitize-recover=all -fsanitize-recover=signed-integer-overflow -fsanitize=undefined -Werror"
+	$(MAKE) test CC=clang MOREFLAGS="-g -fno-sanitize-recover=all -fsanitize-recover=pointer-overflow -fsanitize=undefined -Werror"
 
 asan: clean
 	$(MAKE) test CC=clang MOREFLAGS="-g -fsanitize=address -Werror"
@@ -310,21 +305,24 @@ asan32: clean
 	$(MAKE) -C $(TESTDIR) test32 CC=clang MOREFLAGS="-g -fsanitize=address"
 
 uasan: clean
-	$(MAKE) test CC=clang MOREFLAGS="-g -fno-sanitize-recover=all -fsanitize-recover=signed-integer-overflow -fsanitize=address,undefined -Werror"
+	$(MAKE) test CC=clang MOREFLAGS="-g -fno-sanitize-recover=all -fsanitize-recover=pointer-overflow -fsanitize=address,undefined -Werror"
 
 uasan-%: clean
-	LDFLAGS=-fuse-ld=gold MOREFLAGS="-g -fno-sanitize-recover=all -fsanitize-recover=signed-integer-overflow -fsanitize=address,undefined -Werror" $(MAKE) -C $(TESTDIR) $*
+	LDFLAGS=-fuse-ld=gold MOREFLAGS="-g -fno-sanitize-recover=all -fsanitize-recover=pointer-overflow -fsanitize=address,undefined -Werror" $(MAKE) -C $(TESTDIR) $*
 
 tsan-%: clean
 	LDFLAGS=-fuse-ld=gold MOREFLAGS="-g -fno-sanitize-recover=all -fsanitize=thread -Werror" $(MAKE) -C $(TESTDIR) $* FUZZER_FLAGS=--no-big-tests
 
+.PHONY: apt-install
 apt-install:
 	sudo apt-get -yq --no-install-suggests --no-install-recommends --force-yes install $(APT_PACKAGES)
 
+.PHONY: apt-add-repo
 apt-add-repo:
 	sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
 	sudo apt-get update -y -qq
 
+.PHONY: ppcinstall arminstall valgrindinstall libc6install gcc6install gcc7install gcc8install gpp6install clang38install lz4install
 ppcinstall:
 	APT_PACKAGES="qemu-system-ppc qemu-user-static gcc-powerpc-linux-gnu" $(MAKE) apt-install
 
@@ -359,16 +357,18 @@ lz4install:
 endif
 
 
+CMAKE_PARAMS = -DZSTD_BUILD_CONTRIB:BOOL=ON -DZSTD_BUILD_STATIC:BOOL=ON -DZSTD_BUILD_TESTS:BOOL=ON -DZSTD_ZLIB_SUPPORT:BOOL=ON -DZSTD_LZMA_SUPPORT:BOOL=ON -DCMAKE_BUILD_TYPE=Release
+
 ifneq (,$(filter MSYS%,$(shell uname)))
 HOST_OS = MSYS
 CMAKE_PARAMS = -G"MSYS Makefiles" -DCMAKE_BUILD_TYPE=Debug -DZSTD_MULTITHREAD_SUPPORT:BOOL=OFF -DZSTD_BUILD_STATIC:BOOL=ON -DZSTD_BUILD_TESTS:BOOL=ON
 endif
 
-
 #------------------------------------------------------------------------
 # target specific tests
 #------------------------------------------------------------------------
 ifneq (,$(filter $(HOST_OS),MSYS POSIX))
+.PHONY: cmakebuild c89build gnu90build c99build gnu99build c11build bmix64build bmix32build bmi32build staticAnalyze
 cmakebuild:
 	cmake --version
 	$(RM) -r $(BUILDIR)/cmake/build
