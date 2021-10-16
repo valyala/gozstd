@@ -139,7 +139,8 @@ func compress(cctx, cctxDict *cctxWrapper, dst, src []byte, cd *CDict, compressi
 
 	result := compressInternal(cctx, cctxDict, dst[dstLen:dstLen+compressBound], src, cd, compressionLevel, true)
 	compressedSize := int(result)
-	return dst[:dstLen+compressedSize]
+	// Re-allocate dst in order to remove superflouos capacity and reduce memory usage.
+	return append([]byte{}, dst[:dstLen+compressedSize]...)
 }
 
 func compressInternal(cctx, cctxDict *cctxWrapper, dst, src []byte, cd *CDict, compressionLevel int, mustSucceed bool) C.size_t {
@@ -270,8 +271,8 @@ func decompress(dctx, dctxDict *dctxWrapper, dst, src []byte, dd *DDict) ([]byte
 	result := decompressInternal(dctx, dctxDict, dst[dstLen:dstLen+decompressBound], src, dd)
 	decompressedSize := int(result)
 	if decompressedSize >= 0 {
-		// All OK.
-		return dst[:dstLen+decompressedSize], nil
+		// Re-allocate dst in order to remove superflouos capacity and reduce memory usage.
+		return append([]byte{}, dst[:dstLen+decompressedSize]...), nil
 	}
 
 	// Error during decompression.
