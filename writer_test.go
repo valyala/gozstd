@@ -253,7 +253,9 @@ func TestWriterResetWriterParams(t *testing.T) {
 		}
 		zw.ResetWriterParams(&bb, &params)
 
-		io.Copy(zw, bytes.NewReader(bbOrig.Bytes()))
+		if _, err := io.Copy(zw, bytes.NewReader(bbOrig.Bytes())); err != nil {
+			t.Fatalf("cannot copy data: %s", err)
+		}
 		if err := zw.Close(); err != nil {
 			t.Fatalf("error when closing zw: %s", err)
 		}
