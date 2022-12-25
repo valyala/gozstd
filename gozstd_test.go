@@ -54,6 +54,14 @@ func TestDecompressSmallBlockWithoutSingleSegmentFlag(t *testing.T) {
 	})
 }
 
+func TestDecompressTooLarge(t *testing.T) {
+	src := []byte{40, 181, 47, 253, 228, 122, 118, 105, 67, 140, 234, 85, 20, 159, 67}
+	_, err := Decompress(nil, src)
+	if err == nil {
+		t.Fatalf("expecting error when decompressing malformed frame")
+	}
+}
+
 func mustUnhex(dataHex string) []byte {
 	data, err := hex.DecodeString(dataHex)
 	if err != nil {

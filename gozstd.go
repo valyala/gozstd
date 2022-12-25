@@ -45,6 +45,8 @@ import (
 // DefaultCompressionLevel is the default compression level.
 const DefaultCompressionLevel = 3 // Obtained from ZSTD_CLEVEL_DEFAULT.
 
+const maxFrameContentSize = 256 << 20 // 256 MB
+
 // Compress appends compressed src to dst and returns the result.
 func Compress(dst, src []byte) []byte {
 	return compressDictLevel(dst, src, nil, DefaultCompressionLevel)
@@ -257,14 +259,14 @@ func decompress(dctx, dctxDict *dctxWrapper, dst, src []byte, dd *DDict) ([]byte
 
 	// Slow path - resize dst to fit decompressed data.
 	srcHdr := (*reflect.SliceHeader)(unsafe.Pointer(&src))
-	decompressBound := int(C.ZSTD_getFrameContentSize_wrapper(unsafe.Pointer(srcHdr.Data), C.size_t(len(src))))
-	switch uint64(decompressBound) {
-	case uint64(C.ZSTD_CONTENTSIZE_UNKNOWN):
+	contentSize := C.ZSTD_getFrameContentSize_wrapper(unsafe.Pointer(srcHdr.Data), C.size_t(len(src)))
+	switch {
+	case contentSize == C.ZSTD_CONTENTSIZE_UNKNOWN || contentSize > maxFrameContentSize:
 		return streamDecompress(dst, src, dd)
-	case uint64(C.ZSTD_CONTENTSIZE_ERROR):
+	case contentSize == C.ZSTD_CONTENTSIZE_ERROR:
 		return dst, fmt.Errorf("cannot decompress invalid src")
 	}
-	decompressBound++
+	decompressBound := int(contentSize) + 1
 
 	if n := dstLen + decompressBound - cap(dst); n > 0 {
 		// This should be optimized since go 1.11 - see https://golang.org/doc/go1.11#performance-compiler.
