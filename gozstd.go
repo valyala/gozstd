@@ -147,9 +147,22 @@ func compress(cctx, cctxDict *cctxWrapper, dst, src []byte, cd *CDict, compressi
 	return dst
 }
 
+// noescape hides a pointer from escape analysis. It is the identity function
+// but escape analysis doesn't think the output depends on the input.
+// noescape is inlined and currently compiles down to zero instructions.
+// This is copied from go's strings.Builder. Allows us to use stack-allocated
+// slices.
+//go:nosplit
+//go:nocheckptr
+func noescape(p unsafe.Pointer) unsafe.Pointer {
+	x := uintptr(p)
+	return unsafe.Pointer(x ^ 0)
+}
+
 func compressInternal(cctx, cctxDict *cctxWrapper, dst, src []byte, cd *CDict, compressionLevel int, mustSucceed bool) C.size_t {
-	dstHdr := (*reflect.SliceHeader)(unsafe.Pointer(&dst))
-	srcHdr := (*reflect.SliceHeader)(unsafe.Pointer(&src))
+	// using noescape will allow this to work with stack-allocated slices
+	dstHdr := (*reflect.SliceHeader)(noescape(unsafe.Pointer(&dst)))
+	srcHdr := (*reflect.SliceHeader)(noescape(unsafe.Pointer(&src)))
 
 	if cd != nil {
 		result := C.ZSTD_compress_usingCDict_wrapper(
@@ -180,6 +193,7 @@ func compressInternal(cctx, cctxDict *cctxWrapper, dst, src []byte, cd *CDict, c
 	if mustSucceed {
 		ensureNoError("ZSTD_compressCCtx", result)
 	}
+
 	return result
 }
 
@@ -258,7 +272,7 @@ func decompress(dctx, dctxDict *dctxWrapper, dst, src []byte, dd *DDict) ([]byte
 	}
 
 	// Slow path - resize dst to fit decompressed data.
-	srcHdr := (*reflect.SliceHeader)(unsafe.Pointer(&src))
+	srcHdr := (*reflect.SliceHeader)(noescape(unsafe.Pointer(&src)))
 	contentSize := C.ZSTD_getFrameContentSize_wrapper(unsafe.Pointer(srcHdr.Data), C.size_t(len(src)))
 	switch {
 	case contentSize == C.ZSTD_CONTENTSIZE_UNKNOWN || contentSize > maxFrameContentSize:
@@ -290,8 +304,8 @@ func decompress(dctx, dctxDict *dctxWrapper, dst, src []byte, dd *DDict) ([]byte
 
 func decompressInternal(dctx, dctxDict *dctxWrapper, dst, src []byte, dd *DDict) C.size_t {
 	var (
-		dstHdr = (*reflect.SliceHeader)(unsafe.Pointer(&dst))
-		srcHdr = (*reflect.SliceHeader)(unsafe.Pointer(&src))
+		dstHdr = (*reflect.SliceHeader)(noescape(unsafe.Pointer(&dst)))
+		srcHdr = (*reflect.SliceHeader)(noescape(unsafe.Pointer(&src)))
 		n      C.size_t
 	)
 	if dd != nil {
