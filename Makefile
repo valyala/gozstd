@@ -4,8 +4,8 @@ GOOS_GOARCH := $(GOOS)_$(GOARCH)
 GOOS_GOARCH_NATIVE := $(shell go env GOHOSTOS)_$(shell go env GOHOSTARCH)
 LIBZSTD_NAME := libzstd_$(GOOS_GOARCH).a
 ZSTD_VERSION ?= v1.5.5
-MUSL_BUILDER_IMAGE=golang:1.20.1-alpine
-BUILDER_IMAGE := local/builder_musl:2.0.0-$(shell echo $(MUSL_BUILDER_IMAGE) | tr : _)-1
+ZIG_BUILDER_IMAGE=euantorano/zig:0.10.1
+BUILDER_IMAGE := local/builder_musl:2.0.0-$(shell echo $(ZIG_BUILDER_IMAGE) | tr : _ | tr / _)-1
 
 .PHONY: libzstd.a $(LIBZSTD_NAME)
 
@@ -36,27 +36,28 @@ endif
 package-builder:
 	(docker image ls --format '{{.Repository}}:{{.Tag}}' | grep -q '$(BUILDER_IMAGE)$$') \
 		|| docker build \
-			--build-arg builder_image=$(MUSL_BUILDER_IMAGE) \
+			--build-arg builder_image=$(ZIG_BUILDER_IMAGE) \
 			--tag $(BUILDER_IMAGE) \
 			builder
 
-package-musl: package-builder
+package-arch: package-builder
 	docker run --rm \
-		--user $(shell id -u):$(shell id -g) \
 		--mount type=bind,src="$(shell pwd)",dst=/zstd \
 		-w /zstd \
 		$(DOCKER_OPTS) \
 		$(BUILDER_IMAGE) \
-		sh -c "GOOS=linux_musl make clean libzstd.a"
-	docker run --rm \
-		--user $(shell id -u):$(shell id -g) \
-		--mount type=bind,src="$(shell pwd)",dst=/zstd \
-		--env CC=/opt/cross-builder/aarch64-linux-musl-cross/bin/aarch64-linux-musl-gcc \
-		-w /zstd \
-		$(DOCKER_OPTS) \
-		$(BUILDER_IMAGE) \
-		sh -c "GOARCH=arm64 GOOS=linux_musl make clean libzstd.a"
+		-c 'cd zstd/lib && ZSTD_LEGACY_SUPPORT=0 AR="zig ar" CC="zig cc -target $(TARGET_ARCH)-$(TARGET)" CXX="zig cc -target x86_64-$(TARGET)" MOREFLAGS=$(MOREFLAGS) make clean libzstd.a'
+	mv zstd/lib/libzstd.a libzstd_$(OS)_$(ARCH).a
 
+# freebsd and illumos aren't supported by zig compiler atm.
+release:
+	TARGET=macos TARGET_ARCH=aarch64 OS=darwin ARCH=arm64 $(MAKE) package-arch
+	TARGET=macos TARGET_ARCH=x86_64 OS=darwin ARCH=amd64 $(MAKE) package-arch
+	TARGET=windows TARGET_ARCH=x86_64 OS=windows ARCH=amd64 $(MAKE) package-arch
+	TARGET=linux TARGET_ARCH=x86_64 OS=linux ARCH=amd64 $(MAKE) package-arch
+	TARGET=linux TARGET_ARCH=aarch64 OS=linux ARCH=arm64 $(MAKE) package-arch
+	TARGET=linux_musl TARGET_ARCH=x86_64 OS=linux-musl ARCH=amd64 $(MAKE) package-arch
+	TARGET=linux_musl TARGET_ARCH=aarch64 OS=linux-musl ARCH=arm64 $(MAKE) package-arch
 
 clean:
 	rm -f $(LIBZSTD_NAME)
