@@ -12,33 +12,25 @@ BUILDER_IMAGE := local/builder_musl:2.0.0-$(shell echo $(ZIG_BUILDER_IMAGE) | tr
 libzstd.a: $(LIBZSTD_NAME)
 $(LIBZSTD_NAME):
 ifeq ($(GOOS_GOARCH),$(GOOS_GOARCH_NATIVE))
+	rm -f $(LIBZSTD_NAME)
 	cd zstd/lib && ZSTD_LEGACY_SUPPORT=0 MOREFLAGS=$(MOREFLAGS) $(MAKE) clean libzstd.a
 	mv zstd/lib/libzstd.a $(LIBZSTD_NAME)
-else
-ifeq ($(GOOS_GOARCH),linux_amd64)
+else ifeq ($(GOOS_GOARCH),linux_amd64)
 	TARGET=x86_64-linux GOARCH=amd64 GOOS=linux $(MAKE) package-arch
-endif
-ifeq ($(GOOS_GOARCH),linux_arm)
+else ifeq ($(GOOS_GOARCH),linux_arm)
 	TARGET=arm-linux-gnueabi GOARCH=arm GOOS=linux $(MAKE) package-arch
-endif
-ifeq ($(GOOS_GOARCH),linux_arm64)
+else ifeq ($(GOOS_GOARCH),linux_arm64)
 	TARGET=aarch64-linux GOARCH=arm64 GOOS=linux $(MAKE) package-arch
-endif
-ifeq ($(GOOS_GOARCH),linux_musl_amd64)
+else ifeq ($(GOOS_GOARCH),linux_musl_amd64)
 	TARGET=x86_64-linux-musl GOARCH=amd64 GOOS=linux_musl $(MAKE) package-arch
-endif
-ifeq ($(GOOS_GOARCH),linux_musl_arm64)
+else ifeq ($(GOOS_GOARCH),linux_musl_arm64)
 	TARGET=aarch64-linux-musl GOARCH=arm64 GOOS=linux_musl $(MAKE) package-arch
-endif
-ifeq ($(GOOS_GOARCH),darwin_arm64)
+else ifeq ($(GOOS_GOARCH),darwin_arm64)
 	TARGET=aarch64-macos GOARCH=arm64 GOOS=darwin $(MAKE) package-arch
-endif
-ifeq ($(GOOS_GOARCH),darwin_amd64)
+else ifeq ($(GOOS_GOARCH),darwin_amd64)
 	TARGET=x86_64-macos GOARCH=amd64 GOOS=darwin $(MAKE) package-arch
-endif
-ifeq ($(GOOS_GOARCH),windows_amd64)
+else ifeq ($(GOOS_GOARCH),windows_amd64)
 	TARGET=x86_64-windows GOARCH=amd64 GOOS=windows GOARCH=amd64 $(MAKE) package-arch
-endif
 endif
 
 package-builder:
@@ -49,8 +41,8 @@ package-builder:
 			builder
 
 package-arch: package-builder
+	rm -f $(LIBZSTD_NAME)
 	docker run --rm \
-		--user $(shell id -u):$(shell id -g) \
 		--mount type=bind,src="$(shell pwd)",dst=/zstd \
 		-w /zstd \
 		$(DOCKER_OPTS) \
@@ -60,8 +52,8 @@ package-arch: package-builder
 			CC="zig cc -target $(TARGET)" \
 			CXX="zig cc -target $(TARGET)" \
 			MOREFLAGS=$(MOREFLAGS) \
-			make clean libzstd.a'
-	mv zstd/lib/libzstd.a libzstd_$(GOOS)_$(GOARCH).a
+			$(MAKE) clean libzstd.a'
+	mv -f zstd/lib/libzstd.a $(LIBZSTD_NAME)
 
 # freebsd and illumos aren't supported by zig compiler atm.
 release:
