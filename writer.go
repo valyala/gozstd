@@ -143,6 +143,9 @@ type WriterParams struct {
 
 	// Dict is optional dictionary used for compression.
 	Dict *CDict
+
+	// Checksum. Enable writes of uncompressed data checksum at end of the frame.
+	Checksum bool
 }
 
 // NewWriterParams returns new zstd writer writing compressed data to w
@@ -229,6 +232,16 @@ func initCStream(cs *C.ZSTD_CStream, params WriterParams) {
 		C.uintptr_t(uintptr(unsafe.Pointer(cs))),
 		C.ZSTD_cParameter(C.ZSTD_c_windowLog),
 		C.int(params.WindowLog))
+	ensureNoError("ZSTD_CCtx_setParameter", result)
+
+	checksumFlag := 0
+	if params.Checksum {
+		checksumFlag = 1
+	}
+	result = C.ZSTD_CCtx_setParameter_wrapper(
+		C.uintptr_t(uintptr(unsafe.Pointer(cs))),
+		C.ZSTD_cParameter(C.ZSTD_c_checksumFlag),
+		C.int(checksumFlag))
 	ensureNoError("ZSTD_CCtx_setParameter", result)
 }
 
