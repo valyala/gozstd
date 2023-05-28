@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"math/rand"
 	"runtime"
 	"strings"
@@ -54,12 +55,70 @@ func TestDecompressSmallBlockWithoutSingleSegmentFlag(t *testing.T) {
 	})
 }
 
+func TestCompressEmpty(t *testing.T) {
+	var dst [64]byte
+	res := Compress(dst[:0], nil)
+	if len(res) > 0 {
+		t.Fatalf("unexpected non-empty compressed frame: %X", res)
+	}
+}
+
+func TestDecompressTooLarge(t *testing.T) {
+	src := []byte{40, 181, 47, 253, 228, 122, 118, 105, 67, 140, 234, 85, 20, 159, 67}
+	_, err := Decompress(nil, src)
+	if err == nil {
+		t.Fatalf("expecting error when decompressing malformed frame")
+	}
+}
+
 func mustUnhex(dataHex string) []byte {
 	data, err := hex.DecodeString(dataHex)
 	if err != nil {
 		panic(fmt.Errorf("BUG: cannot unhex %q: %s", dataHex, err))
 	}
 	return data
+}
+
+func TestCompressWithStackMove(t *testing.T) {
+	var srcBuf [96]byte
+
+	n, err := io.ReadFull(rand.New(rand.NewSource(time.Now().Unix())), srcBuf[:])
+	if err != nil {
+		t.Fatalf("cannot fill srcBuf with random data: %s", err)
+	}
+
+	// We're running this twice, because the first run will allocate
+	// objects in sync.Pool, calls to which extend the stack, and the second
+	// run can skip those allocations and extend the stack right before
+	// the CGO call.
+	// Note that this test might require some go:nosplit annotations
+	// to force the stack move to happen exactly before the CGO call.
+	for i := 0; i < 2; i++ {
+		ch := make(chan struct{})
+		go func() {
+			defer close(ch)
+
+			var dstBuf [1416]byte
+
+			res := Compress(dstBuf[:0], srcBuf[:n])
+
+			// make a copy of the result, so the original can remain on the stack
+			compressedCpy := make([]byte, len(res))
+			copy(compressedCpy, res)
+
+			orig, err := Decompress(nil, compressedCpy)
+			if err != nil {
+				panic(fmt.Errorf("cannot decompress: %s", err))
+			}
+			if !bytes.Equal(orig, srcBuf[:n]) {
+				panic(fmt.Errorf("unexpected decompressed data; got %q; want %q", orig, srcBuf[:n]))
+			}
+		}()
+		// wait for the goroutine to finish
+		<-ch
+	}
+
+	runtime.GC()
 }
 
 func TestCompressDecompressDistinctConcurrentDicts(t *testing.T) {
