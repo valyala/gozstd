@@ -266,11 +266,17 @@ tryDecompressAgain:
 }
 
 func (zr *Reader) fillInBuf() error {
-	// Copy the remaining data to the start of inBuf.
-	if zr.sizes.srcPos > 0 && int(zr.sizes.srcPos) > cap(zr.inBuf)/2 {
-		copy(zr.inBuf[:cap(zr.inBuf)], zr.inBuf[zr.sizes.srcPos:])
-		zr.inBuf = zr.inBuf[:len(zr.inBuf)-int(zr.sizes.srcPos)]
-		zr.sizes.srcPos = 0
+	if zr.sizes.srcPos > 0 {
+		if int(zr.sizes.srcPos) == len(zr.inBuf) {
+			// we've read all the data from inBuf, reset it
+			zr.inBuf = zr.inBuf[:0]
+			zr.sizes.srcPos = 0
+		} else if int(zr.sizes.srcPos) > cap(zr.inBuf)/2 {
+			// Copy the remaining data to the start of inBuf.
+			copy(zr.inBuf[:cap(zr.inBuf)], zr.inBuf[zr.sizes.srcPos:])
+			zr.inBuf = zr.inBuf[:len(zr.inBuf)-int(zr.sizes.srcPos)]
+			zr.sizes.srcPos = 0
+		}
 	}
 
 readAgain:
