@@ -82,7 +82,7 @@ update-zstd:
 	cp zstd/lib/zstd_errors.h .
 
 test:
-	CGO_ENABLED=1 GODEBUG=cgocheck=2 go test -v
+	CGO_ENABLED=1 GOEXPERIMENT=cgocheck2 go test -v
 
 bench:
 	CGO_ENABLED=1 go test -bench=.
