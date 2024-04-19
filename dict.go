@@ -111,9 +111,8 @@ var buildDictLock sync.Mutex
 //
 // A single CDict may be re-used in concurrently running goroutines.
 type CDict struct {
-	p *C.ZSTD_CDict
-	// Keep the underlying bytes alive from the GC's point of view (if passing by ref)
-	input            []byte
+	p                *C.ZSTD_CDict
+	pinner           runtime.Pinner
 	compressionLevel int
 }
 
@@ -168,12 +167,17 @@ func NewCDictLevelByRef(dict []byte, compressionLevel int) (*CDict, error) {
 		return nil, fmt.Errorf("dict cannot be empty")
 	}
 
+	// Pin the backing array of the input - it must not move while C.ZSTD_CDict
+	// is alive.
+	var pinner runtime.Pinner
+	pinner.Pin(&dict[0])
+
 	cd := &CDict{
 		p: C.ZSTD_createCDict_byReference_wrapper(
 			C.uintptr_t(uintptr(unsafe.Pointer(&dict[0]))),
 			C.size_t(len(dict)),
 			C.int(compressionLevel)),
-		input:            dict,
+		pinner:           pinner,
 		compressionLevel: compressionLevel,
 	}
 	// Prevent from GC'ing of dict during CGO call above.
@@ -192,7 +196,7 @@ func (cd *CDict) Release() {
 	result := C.ZSTD_freeCDict(cd.p)
 	ensureNoError("ZSTD_freeCDict", result)
 	cd.p = nil
-	cd.input = nil
+	cd.pinner.Unpin()
 }
 
 func freeCDict(v interface{}) {
@@ -203,9 +207,8 @@ func freeCDict(v interface{}) {
 //
 // A single DDict may be re-used in concurrently running goroutines.
 type DDict struct {
-	p *C.ZSTD_DDict
-	// Keep the underlying bytes alive from the GC's point of view (if passing by ref)
-	input []byte
+	p      *C.ZSTD_DDict
+	pinner runtime.Pinner
 }
 
 // NewDDict creates new DDict from the given dict.
@@ -238,11 +241,16 @@ func NewDDictByRef(dict []byte) (*DDict, error) {
 		return nil, fmt.Errorf("dict cannot be empty")
 	}
 
+	// Pin the backing array of the input - it must not move while C.ZSTD_DDict
+	// is alive.
+	var pinner runtime.Pinner
+	pinner.Pin(&dict[0])
+
 	dd := &DDict{
 		p: C.ZSTD_createDDict_byReference_wrapper(
 			C.uintptr_t(uintptr(unsafe.Pointer(&dict[0]))),
 			C.size_t(len(dict))),
-		input: dict,
+		pinner: pinner,
 	}
 	// Prevent from GC'ing of dict during CGO call above.
 	runtime.KeepAlive(dict)
@@ -261,7 +269,7 @@ func (dd *DDict) Release() {
 	result := C.ZSTD_freeDDict(dd.p)
 	ensureNoError("ZSTD_freeDDict", result)
 	dd.p = nil
-	dd.input = nil
+	dd.pinner.Unpin()
 }
 
 func freeDDict(v interface{}) {
