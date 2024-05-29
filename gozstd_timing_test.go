@@ -19,16 +19,33 @@ func BenchmarkDecompressDict(b *testing.B) {
 		b.Run(fmt.Sprintf("blockSize_%d", blockSize), func(b *testing.B) {
 			for _, level := range benchCompressionLevels {
 				b.Run(fmt.Sprintf("level_%d", level), func(b *testing.B) {
-					benchmarkDecompressDict(b, blockSize, level)
+					benchmarkDecompressDict(b, blockSize, level, false)
 				})
 			}
 		})
 	}
 }
 
-func benchmarkDecompressDict(b *testing.B, blockSize, level int) {
+func BenchmarkDecompressDictByRef(b *testing.B) {
+	for _, blockSize := range benchBlockSizes {
+		b.Run(fmt.Sprintf("blockSize_%d", blockSize), func(b *testing.B) {
+			for _, level := range benchCompressionLevels {
+				b.Run(fmt.Sprintf("level_%d", level), func(b *testing.B) {
+					benchmarkDecompressDict(b, blockSize, level, true)
+				})
+			}
+		})
+	}
+}
+
+func benchmarkDecompressDict(b *testing.B, blockSize, level int, byReference bool) {
 	block := newBenchString(blockSize)
-	bd := getBenchDicts(level)
+	var bd *benchDicts
+	if byReference {
+		bd = getBenchDictsByRef(level)
+	} else {
+		bd = getBenchDicts(level)
+	}
 	src := CompressDict(nil, block, bd.cd)
 	b.Logf("compressionRatio: %f", float64(len(block))/float64(len(src)))
 	b.ReportAllocs()
@@ -54,16 +71,33 @@ func BenchmarkCompressDict(b *testing.B) {
 		b.Run(fmt.Sprintf("blockSize_%d", blockSize), func(b *testing.B) {
 			for _, level := range benchCompressionLevels {
 				b.Run(fmt.Sprintf("level_%d", level), func(b *testing.B) {
-					benchmarkCompressDict(b, blockSize, level)
+					benchmarkCompressDict(b, blockSize, level, false)
 				})
 			}
 		})
 	}
 }
 
-func benchmarkCompressDict(b *testing.B, blockSize, level int) {
+func BenchmarkCompressDictByRef(b *testing.B) {
+	for _, blockSize := range benchBlockSizes {
+		b.Run(fmt.Sprintf("blockSize_%d", blockSize), func(b *testing.B) {
+			for _, level := range benchCompressionLevels {
+				b.Run(fmt.Sprintf("level_%d", level), func(b *testing.B) {
+					benchmarkCompressDict(b, blockSize, level, true)
+				})
+			}
+		})
+	}
+}
+
+func benchmarkCompressDict(b *testing.B, blockSize, level int, byReference bool) {
 	src := newBenchString(blockSize)
-	bd := getBenchDicts(level)
+	var bd *benchDicts
+	if byReference {
+		bd = getBenchDictsByRef(level)
+	} else {
+		bd = getBenchDicts(level)
+	}
 	b.ReportAllocs()
 	b.SetBytes(int64(len(src)))
 	b.ResetTimer()
@@ -89,15 +123,45 @@ func getBenchDicts(level int) *benchDicts {
 	return tmp
 }
 
+func getBenchDictsByRef(level int) *benchDicts {
+	benchDictsByRefLock.Lock()
+	tmp := benchDictsByRefMap[level]
+	if tmp == nil {
+		tmp = newBenchDictsByRef(level)
+		benchDictsByRefMap[level] = tmp
+	}
+	benchDictsByRefLock.Unlock()
+	return tmp
+}
+
 type benchDicts struct {
 	cd *CDict
 	dd *DDict
 }
 
-var benchDictsMap = make(map[int]*benchDicts)
-var benchDictsLock sync.Mutex
+var (
+	benchDictsMap       = make(map[int]*benchDicts)
+	benchDictsLock      sync.Mutex
+	benchDictsByRefMap  = make(map[int]*benchDicts)
+	benchDictsByRefLock sync.Mutex
+)
 
 func newBenchDicts(level int) *benchDicts {
+	return createNewBenchDicts(NewCDictLevel, NewDDict, level)
+}
+
+func newBenchDictsByRef(level int) *benchDicts {
+	return createNewBenchDicts(NewCDictLevelByRef, NewDDictByRef, level)
+}
+
+// Make it easier to toggle between copying the underlying bytes on creation
+// vs. sharing by reference.
+type (
+	cdictFactory func(dict []byte, level int) (*CDict, error)
+	ddictFactory func(dict []byte) (*DDict, error)
+)
+
+func createNewBenchDicts(createCDict cdictFactory, createDDict ddictFactory, level int) *benchDicts {
 	var samples [][]byte
 	for i := 0; i < 300; i++ {
 		sampleLen := rand.Intn(300)
@@ -106,11 +170,11 @@ func newBenchDicts(level int) *benchDicts {
 	}
 
 	dict := BuildDict(samples, 32*1024)
-	cd, err := NewCDictLevel(dict, level)
+	cd, err := createCDict(dict, level)
 	if err != nil {
 		panic(fmt.Errorf("cannot create CDict: %s", err))
 	}
-	dd, err := NewDDict(dict)
+	dd, err := createDDict(dict)
 	if err != nil {
 		panic(fmt.Errorf("cannot create DDict: %s", err))
 	}

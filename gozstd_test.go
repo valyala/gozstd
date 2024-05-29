@@ -123,6 +123,67 @@ func TestCompressDecompressDistinctConcurrentDicts(t *testing.T) {
 	}
 }
 
+func TestCompressDecompressDistinctConcurrentDictsByRef(t *testing.T) {
+	// Build multiple distinct dicts, sharing the underlying byte array
+	var cdicts []*CDict
+	var ddicts []*DDict
+	defer func() {
+		for _, cd := range cdicts {
+			cd.Release()
+		}
+		for _, dd := range ddicts {
+			dd.Release()
+		}
+	}()
+	for i := 0; i < 4; i++ {
+		var samples [][]byte
+		for j := 0; j < 1000; j++ {
+			sample := fmt.Sprintf("this is %d,%d sample", j, i)
+			samples = append(samples, []byte(sample))
+		}
+		dict := BuildDict(samples, 4*1024)
+		cd, err := NewCDictByRef(dict)
+		if err != nil {
+			t.Fatalf("cannot create CDict: %s", err)
+		}
+		cdicts = append(cdicts, cd)
+		dd, err := NewDDictByRef(dict)
+		if err != nil {
+			t.Fatalf("cannot create DDict: %s", err)
+		}
+		ddicts = append(ddicts, dd)
+	}
+
+	// Build data for the compression.
+	var bb bytes.Buffer
+	i := 0
+	for bb.Len() < 1e4 {
+		fmt.Fprintf(&bb, "%d sample line this is %d", bb.Len(), i)
+		i++
+	}
+	data := bb.Bytes()
+
+	// Run concurrent goroutines compressing/decompressing with distinct dicts.
+	ch := make(chan error, len(cdicts))
+	for i := 0; i < cap(ch); i++ {
+		go func(cd *CDict, dd *DDict) {
+			ch <- testCompressDecompressDistinctConcurrentDicts(cd, dd, data)
+		}(cdicts[i], ddicts[i])
+	}
+
+	// Wait for goroutines to finish.
+	for i := 0; i < cap(ch); i++ {
+		select {
+		case err := <-ch:
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("timeout")
+		}
+	}
+}
+
 func testCompressDecompressDistinctConcurrentDicts(cd *CDict, dd *DDict, data []byte) error {
 	var compressedData, decompressedData []byte
 	for j := 0; j < 10; j++ {
