@@ -180,8 +180,7 @@ func NewCDictLevelByRef(dict []byte, compressionLevel int) (*CDict, error) {
 		pinner:           pinner,
 		compressionLevel: compressionLevel,
 	}
-	// Prevent from GC'ing of dict during CGO call above.
-	runtime.KeepAlive(dict)
+	// No need for runtime.KeepAlive due to explicit pinning
 	runtime.SetFinalizer(cd, freeCDict)
 	return cd, nil
 }
@@ -252,8 +251,7 @@ func NewDDictByRef(dict []byte) (*DDict, error) {
 			C.size_t(len(dict))),
 		pinner: pinner,
 	}
-	// Prevent from GC'ing of dict during CGO call above.
-	runtime.KeepAlive(dict)
+	// No need for runtime.KeepAlive due to explicit pinning
 	runtime.SetFinalizer(dd, freeDDict)
 	return dd, nil
 }
