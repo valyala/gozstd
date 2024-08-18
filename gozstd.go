@@ -48,24 +48,24 @@ const DefaultCompressionLevel = 3 // Obtained from ZSTD_CLEVEL_DEFAULT.
 
 // Compress appends compressed src to dst and returns the result.
 func Compress(dst, src []byte) []byte {
-	return compressDictLevel(dst, src, nil, DefaultCompressionLevel)
+	return CompressDictLevel(dst, src, nil, DefaultCompressionLevel)
 }
 
 // CompressLevel appends compressed src to dst and returns the result.
 //
 // The given compressionLevel is used for the compression.
 func CompressLevel(dst, src []byte, compressionLevel int) []byte {
-	return compressDictLevel(dst, src, nil, compressionLevel)
+	return CompressDictLevel(dst, src, nil, compressionLevel)
 }
 
 // CompressDict appends compressed src to dst and returns the result.
 //
 // The given dictionary is used for the compression.
 func CompressDict(dst, src []byte, cd *CDict) []byte {
-	return compressDictLevel(dst, src, cd, 0)
+	return CompressDictLevel(dst, src, cd, 0)
 }
 
-func compressDictLevel(dst, src []byte, cd *CDict, compressionLevel int) []byte {
+func CompressDictLevel(dst, src []byte, cd *CDict, compressionLevel int) []byte {
 	var cctx, cctxDict *cctxWrapper
 	if cd == nil {
 		cctx = cctxPool.Get().(*cctxWrapper)
