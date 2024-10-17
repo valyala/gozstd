@@ -23,6 +23,14 @@ static ZSTD_DDict* ZSTD_createDDict_wrapper(uintptr_t dictBuffer, size_t dictSiz
 	return ZSTD_createDDict((const void *)dictBuffer, dictSize);
 }
 
+static ZSTD_CDict* ZSTD_createCDict_byReference_wrapper(uintptr_t dictBuffer, size_t dictSize, int compressionLevel) {
+	return ZSTD_createCDict_byReference((const void *)dictBuffer, dictSize, compressionLevel);
+}
+
+static ZSTD_DDict* ZSTD_createDDict_byReference_wrapper(uintptr_t dictBuffer, size_t dictSize) {
+	return ZSTD_createDDict_byReference((const void *)dictBuffer, dictSize);
+}
+
 */
 import "C"
 
@@ -104,6 +112,7 @@ var buildDictLock sync.Mutex
 // A single CDict may be re-used in concurrently running goroutines.
 type CDict struct {
 	p                *C.ZSTD_CDict
+	pinner           runtime.Pinner
 	compressionLevel int
 }
 
@@ -112,6 +121,16 @@ type CDict struct {
 // Call Release when the returned dict is no longer used.
 func NewCDict(dict []byte) (*CDict, error) {
 	return NewCDictLevel(dict, DefaultCompressionLevel)
+}
+
+// NewCDictByRef creates a new CDict that shares the given dict
+//
+// Callers *must not* mutate the underlying array of 'dict'. Doing so will lead
+// to undefined and undesirable behavior.
+//
+// Call Release when the returned dict is no longer used.
+func NewCDictByRef(dict []byte) (*CDict, error) {
+	return NewCDictLevelByRef(dict, DefaultCompressionLevel)
 }
 
 // NewCDictLevel creates new CDict from the given dict
@@ -136,6 +155,36 @@ func NewCDictLevel(dict []byte, compressionLevel int) (*CDict, error) {
 	return cd, nil
 }
 
+// NewCDictLevelByRef creates a new CDict that shares the given dict using
+// the given compressionLevel.
+//
+// Callers *must not* mutate the underlying array of 'dict'. Doing so will lead
+// to undefined and undesirable behavior.
+//
+// Call Release when the returned dict is no longer used.
+func NewCDictLevelByRef(dict []byte, compressionLevel int) (*CDict, error) {
+	if len(dict) == 0 {
+		return nil, fmt.Errorf("dict cannot be empty")
+	}
+
+	// Pin the backing array of the input - it must not move while C.ZSTD_CDict
+	// is alive.
+	var pinner runtime.Pinner
+	pinner.Pin(&dict[0])
+
+	cd := &CDict{
+		p: C.ZSTD_createCDict_byReference_wrapper(
+			C.uintptr_t(uintptr(unsafe.Pointer(&dict[0]))),
+			C.size_t(len(dict)),
+			C.int(compressionLevel)),
+		pinner:           pinner,
+		compressionLevel: compressionLevel,
+	}
+	// No need for runtime.KeepAlive due to explicit pinning
+	runtime.SetFinalizer(cd, freeCDict)
+	return cd, nil
+}
+
 // Release releases resources occupied by cd.
 //
 // cd cannot be used after the release.
@@ -146,6 +195,7 @@ func (cd *CDict) Release() {
 	result := C.ZSTD_freeCDict(cd.p)
 	ensureNoError("ZSTD_freeCDict", result)
 	cd.p = nil
+	cd.pinner.Unpin()
 }
 
 func freeCDict(v interface{}) {
@@ -156,7 +206,8 @@ func freeCDict(v interface{}) {
 //
 // A single DDict may be re-used in concurrently running goroutines.
 type DDict struct {
-	p *C.ZSTD_DDict
+	p      *C.ZSTD_DDict
+	pinner runtime.Pinner
 }
 
 // NewDDict creates new DDict from the given dict.
@@ -178,6 +229,33 @@ func NewDDict(dict []byte) (*DDict, error) {
 	return dd, nil
 }
 
+// NewDDictByRef creates a new DDict that shares the given dict
+//
+// Callers *must not* mutate the underlying array of 'dict'. Doing so will lead
+// to undefined and undesirable behavior.
+//
+// Call Release when the returned dict is no longer needed.
+func NewDDictByRef(dict []byte) (*DDict, error) {
+	if len(dict) == 0 {
+		return nil, fmt.Errorf("dict cannot be empty")
+	}
+
+	// Pin the backing array of the input - it must not move while C.ZSTD_DDict
+	// is alive.
+	var pinner runtime.Pinner
+	pinner.Pin(&dict[0])
+
+	dd := &DDict{
+		p: C.ZSTD_createDDict_byReference_wrapper(
+			C.uintptr_t(uintptr(unsafe.Pointer(&dict[0]))),
+			C.size_t(len(dict))),
+		pinner: pinner,
+	}
+	// No need for runtime.KeepAlive due to explicit pinning
+	runtime.SetFinalizer(dd, freeDDict)
+	return dd, nil
+}
+
 // Release releases resources occupied by dd.
 //
 // dd cannot be used after the release.
@@ -189,6 +267,7 @@ func (dd *DDict) Release() {
 	result := C.ZSTD_freeDDict(dd.p)
 	ensureNoError("ZSTD_freeDDict", result)
 	dd.p = nil
+	dd.pinner.Unpin()
 }
 
 func freeDDict(v interface{}) {
