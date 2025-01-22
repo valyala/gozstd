@@ -30,7 +30,7 @@ else ifeq ($(GOOS_GOARCH),darwin_arm64)
 else ifeq ($(GOOS_GOARCH),darwin_amd64)
 	TARGET=x86_64-macos GOARCH=amd64 GOOS=darwin $(MAKE) package-arch
 else ifeq ($(GOOS_GOARCH),windows_amd64)
-	TARGET=x86_64-windows GOARCH=amd64 GOOS=windows GOARCH=amd64 $(MAKE) package-arch
+	TARGET=x86_64-windows GOARCH=amd64 GOOS=windows $(MAKE) package-arch
 endif
 
 package-builder:
