@@ -14,8 +14,8 @@ func ExampleReader() {
 
 	// Read it via Reader.
 	r := bytes.NewReader(compressedData)
-	zr := NewReader(r)
-	defer zr.Release()
+	zr := MustNewReader(r)
+	defer zr.Close()
 
 	var a []int
 	for i := 0; i < 3; i++ {
@@ -39,14 +39,14 @@ func ExampleReader() {
 }
 
 func ExampleReader_Reset() {
-	zr := NewReader(nil)
-	defer zr.Release()
+	zr := MustNewReader(nil)
+	defer zr.Close()
 
 	// Read from different sources using the same Reader.
 	for i := 0; i < 3; i++ {
 		compressedData := Compress(nil, []byte(fmt.Sprintf("line %d", i)))
 		r := bytes.NewReader(compressedData)
-		zr.Reset(r, nil)
+		zr.MustReset(r, nil)
 
 		data, err := ioutil.ReadAll(zr)
 		if err != nil {

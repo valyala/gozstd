@@ -159,8 +159,8 @@ func testWriterDictSerial(cd *CDict, dd *DDict) error {
 	}
 
 	// Decompress via Reader.
-	zr := NewReaderDict(&bb, dd)
-	defer zr.Release()
+	zr := MustNewReaderDict(&bb, dd)
+	defer zr.Close()
 
 	plainData, err = ioutil.ReadAll(zr)
 	if err != nil {
@@ -180,8 +180,8 @@ func testWriterDictSerial(cd *CDict, dd *DDict) error {
 		return fmt.Errorf("unexpected error when decompressing without dict; got %q; want %q", err, "Dictionary mismatch")
 	}
 
-	zrNoDict := NewReader(bytes.NewReader(compressedData))
-	defer zrNoDict.Release()
+	zrNoDict := MustNewReader(bytes.NewReader(compressedData))
+	defer zrNoDict.Close()
 
 	_, err = ioutil.ReadAll(zrNoDict)
 	if err == nil {
@@ -219,7 +219,7 @@ func TestWriterWindowLog(t *testing.T) {
 			}
 			zw.Release()
 
-			zr := NewReader(bytes.NewReader(bb.Bytes()))
+			zr := MustNewReader(bytes.NewReader(bb.Bytes()))
 			plainData, err := ioutil.ReadAll(zr)
 			if err != nil {
 				t.Fatalf("cannot decompress data on level %d wlog %d: %s", level, wlog, err)
@@ -227,7 +227,7 @@ func TestWriterWindowLog(t *testing.T) {
 			if !bytes.Equal(plainData, src) {
 				t.Fatalf("unexpected data obtained after decompression on level %d wlog %d; got\n%X; want\n%X", level, wlog, plainData, src)
 			}
-			zr.Release()
+			zr.Close()
 		}
 	}
 }
@@ -386,7 +386,7 @@ func testWriterSerial(s string) error {
 		}
 
 		// Use Reader
-		zr := NewReader(&bb)
+		zr := MustNewReader(&bb)
 		dd, err = ioutil.ReadAll(zr)
 		if err != nil {
 			return fmt.Errorf("unexpected error when reading compressed data: %s", err)
@@ -436,8 +436,8 @@ func TestWriterBig(t *testing.T) {
 	pr, pw := io.Pipe()
 	zw := NewWriter(pw)
 	defer zw.Release()
-	zr := NewReader(pr)
-	defer zr.Release()
+	zr := MustNewReader(pr)
+	defer zr.Close()
 
 	doneCh := make(chan error)
 	var writtenBB bytes.Buffer

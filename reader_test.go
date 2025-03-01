@@ -34,7 +34,7 @@ func TestReaderReadCompressBomb(t *testing.T) {
 		t.Fatalf("cannot flush data: %s", err)
 	}
 
-	zr := NewReader(&bb)
+	zr := MustNewReader(&bb)
 	buf := make([]byte, len(s))
 	n, err = io.ReadFull(zr, buf)
 	if err != nil {
@@ -50,14 +50,14 @@ func TestReaderReadCompressBomb(t *testing.T) {
 	// Free resources.
 	zw.Close()
 	zw.Release()
-	zr.Release()
+	zr.Close()
 }
 
 func TestReaderWriteTo(t *testing.T) {
 	data := newTestString(130*1024, 3)
 	compressedData := Compress(nil, []byte(data))
-	zr := NewReader(bytes.NewReader(compressedData))
-	defer zr.Release()
+	zr := MustNewReader(bytes.NewReader(compressedData))
+	defer zr.Close()
 
 	var bb bytes.Buffer
 	n, err := zr.WriteTo(&bb)
@@ -126,8 +126,8 @@ func testReaderDictSerial(cd *CDict, dd *DDict) error {
 	compressedData := CompressDict(nil, origData, cd)
 
 	// Decompress via Reader.
-	zr := NewReaderDict(bytes.NewReader(compressedData), dd)
-	defer zr.Release()
+	zr := MustNewReaderDict(bytes.NewReader(compressedData), dd)
+	defer zr.Close()
 
 	plainData, err := ioutil.ReadAll(zr)
 	if err != nil {
@@ -139,8 +139,8 @@ func testReaderDictSerial(cd *CDict, dd *DDict) error {
 	}
 
 	// Try decompressing without dict.
-	zrNoDict := NewReader(bytes.NewReader(compressedData))
-	defer zrNoDict.Release()
+	zrNoDict := MustNewReader(bytes.NewReader(compressedData))
+	defer zrNoDict.Close()
 
 	_, err = ioutil.ReadAll(zrNoDict)
 	if err == nil {
@@ -162,8 +162,8 @@ func TestReaderMultiFrames(t *testing.T) {
 	cd := Compress(nil, bb.Bytes())
 
 	r := bytes.NewReader(cd)
-	zr := NewReader(r)
-	defer zr.Release()
+	zr := MustNewReader(r)
+	defer zr.Close()
 	plainData, err := ioutil.ReadAll(zr)
 	if err != nil {
 		t.Fatalf("cannot read big data: %s", err)
@@ -178,8 +178,8 @@ func TestReaderBadUnderlyingReader(t *testing.T) {
 	r := &badReader{
 		b: Compress(nil, []byte(newTestString(64*1024, 30))),
 	}
-	zr := NewReader(r)
-	defer zr.Release()
+	zr := MustNewReader(r)
+	defer zr.Close()
 
 	buf := make([]byte, 123)
 	for {
@@ -213,8 +213,8 @@ func TestReaderInvalidData(t *testing.T) {
 	src := []byte("invalid compressed data")
 
 	r := bytes.NewReader(src)
-	zr := NewReader(r)
-	defer zr.Release()
+	zr := MustNewReader(r)
+	defer zr.Close()
 
 	if _, err := ioutil.ReadAll(zr); err == nil {
 		t.Fatalf("expecting error when decompressing invalid data")
@@ -226,7 +226,7 @@ func TestReaderInvalidData(t *testing.T) {
 	cd[len(cd)-1]++
 
 	r = bytes.NewReader(cd)
-	zr.Reset(r, nil)
+	zr.MustReset(r, nil)
 
 	if _, err := ioutil.ReadAll(zr); err == nil {
 		t.Fatalf("expecting error when decompressing corrupted data")
@@ -276,11 +276,11 @@ func testReader(t *testing.T, s string) {
 }
 
 func testReaderSerial(s string, cd []byte) error {
-	zr := NewReader(nil)
-	defer zr.Release()
+	zr := MustNewReader(nil)
+	defer zr.Close()
 	for i := 0; i < 2; i++ {
 		r := bytes.NewReader(cd)
-		zr.Reset(r, nil)
+		zr.MustReset(r, nil)
 		if err := testReaderExt(zr, s); err != nil {
 			return err
 		}

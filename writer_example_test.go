@@ -60,8 +60,8 @@ func ExampleWriter_Flush() {
 	}
 
 	// Try reading the compressed data with reader.
-	zr := NewReader(&bb)
-	defer zr.Release()
+	zr := MustNewReader(&bb)
+	defer zr.Close()
 	buf := make([]byte, len(data))
 	if _, err := io.ReadFull(zr, buf); err != nil {
 		log.Fatalf("cannot read the compressed data: %s", err)

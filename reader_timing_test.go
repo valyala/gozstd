@@ -29,8 +29,8 @@ func benchmarkReaderDict(b *testing.B, blockSize, level int) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		r := bytes.NewReader(cd)
-		zr := NewReaderDict(r, bd.dd)
-		defer zr.Release()
+		zr := MustNewReaderDict(r, bd.dd)
+		defer zr.Close()
 		buf := make([]byte, blockSize)
 		for pb.Next() {
 			for {
@@ -43,7 +43,7 @@ func benchmarkReaderDict(b *testing.B, blockSize, level int) {
 				}
 			}
 			r.Reset(cd)
-			zr.Reset(r, bd.dd)
+			zr.MustReset(r, bd.dd)
 		}
 	})
 }
@@ -69,8 +69,8 @@ func benchmarkReader(b *testing.B, blockSize, level int) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		r := bytes.NewReader(cd)
-		zr := NewReader(r)
-		defer zr.Release()
+		zr := MustNewReader(r)
+		defer zr.Close()
 		buf := make([]byte, blockSize)
 		for pb.Next() {
 			for {
@@ -83,7 +83,7 @@ func benchmarkReader(b *testing.B, blockSize, level int) {
 				}
 			}
 			r.Reset(cd)
-			zr.Reset(r, nil)
+			zr.MustReset(r, nil)
 		}
 	})
 }

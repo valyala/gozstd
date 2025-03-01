@@ -21,18 +21,18 @@ func ExampleCompress_simple() {
 }
 
 func ExampleCompress_multiple() {
-        data := []byte("foo bar baz")
+	data := []byte("foo bar baz")
 
-        // Compress and decompress data into new buffers.
-        compressedData := Compress(nil, data)
-        decompressedData, err := Decompress(nil, append(compressedData, compressedData...))
-        if err != nil {
-                log.Fatalf("cannot decompress data: %s", err)
-        }
+	// Compress and decompress data into new buffers.
+	compressedData := Compress(nil, data)
+	decompressedData, err := Decompress(nil, append(compressedData, compressedData...))
+	if err != nil {
+		log.Fatalf("cannot decompress data: %s", err)
+	}
 
-        fmt.Printf("%s", decompressedData)
-        // Output:
-        // foo bar bazfoo bar baz
+	fmt.Printf("%s", decompressedData)
+	// Output:
+	// foo bar bazfoo bar baz
 }
 
 func ExampleDecompress_simple() {
