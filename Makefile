@@ -4,7 +4,7 @@ GOOS_GOARCH := $(GOOS)_$(GOARCH)
 GOOS_GOARCH_NATIVE := $(shell go env GOHOSTOS)_$(shell go env GOHOSTARCH)
 LIBZSTD_NAME := libzstd_$(GOOS_GOARCH).a
 ZSTD_VERSION ?= v1.5.6
-ZIG_BUILDER_IMAGE=euantorano/zig:0.10.1
+ZIG_BUILDER_IMAGE=denisgolius/zig:0.13.0
 BUILDER_IMAGE := local/builder_musl:2.0.0-$(shell echo $(ZIG_BUILDER_IMAGE) | tr : _ | tr / _)-1
 
 .PHONY: libzstd.a $(LIBZSTD_NAME)
@@ -32,7 +32,7 @@ else ifeq ($(GOOS_GOARCH),darwin_arm64)
 else ifeq ($(GOOS_GOARCH),darwin_amd64)
 	TARGET=x86_64-macos GOARCH=amd64 GOOS=darwin $(MAKE) package-arch
 else ifeq ($(GOOS_GOARCH),windows_amd64)
-	TARGET=x86_64-windows GOARCH=amd64 GOOS=windows GOARCH=amd64 $(MAKE) package-arch
+	TARGET=x86_64-windows GOARCH=amd64 GOOS=windows $(MAKE) package-arch
 endif
 
 package-builder:
