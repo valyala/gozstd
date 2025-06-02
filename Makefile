@@ -3,7 +3,7 @@ GOARCH ?= $(shell go env GOARCH)
 GOOS_GOARCH := $(GOOS)_$(GOARCH)
 GOOS_GOARCH_NATIVE := $(shell go env GOHOSTOS)_$(shell go env GOHOSTARCH)
 LIBZSTD_NAME := libzstd_$(GOOS_GOARCH).a
-ZSTD_VERSION ?= v1.5.6
+ZSTD_VERSION ?= v1.5.7
 ZIG_BUILDER_IMAGE=euantorano/zig:0.10.1
 BUILDER_IMAGE := local/builder_musl:2.0.0-$(shell echo $(ZIG_BUILDER_IMAGE) | tr : _ | tr / _)-1
 
@@ -79,10 +79,10 @@ update-zstd:
 	rm -rf zstd-tmp/.git
 	rm -rf zstd
 	mv zstd-tmp zstd
-	$(MAKE) clean libzstd.a
 	cp zstd/lib/zstd.h .
 	cp zstd/lib/zdict.h .
 	cp zstd/lib/zstd_errors.h .
+	$(MAKE) release
 
 test:
 	CGO_ENABLED=1 GOEXPERIMENT=cgocheck2 go test -v
