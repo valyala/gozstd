@@ -74,12 +74,12 @@ func NewReaderDict(r io.Reader, dd *DDict) *Reader {
 	initDStream(ds, dd)
 
 	inBuf := (*C.ZSTD_inBuffer)(C.calloc(1, C.sizeof_ZSTD_inBuffer))
-	inBuf.src = C.calloc(1, dstreamInBufSize)
+	inBuf.src = C.malloc(dstreamInBufSize)
 	inBuf.size = 0
 	inBuf.pos = 0
 
 	outBuf := (*C.ZSTD_outBuffer)(C.calloc(1, C.sizeof_ZSTD_outBuffer))
-	outBuf.dst = C.calloc(1, dstreamOutBufSize)
+	outBuf.dst = C.malloc(dstreamOutBufSize)
 	outBuf.size = 0
 	outBuf.pos = 0
 
