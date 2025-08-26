@@ -33,6 +33,8 @@ else ifeq ($(GOOS_GOARCH),darwin_amd64)
 	TARGET=x86_64-macos GOARCH=amd64 GOOS=darwin $(MAKE) package-arch
 else ifeq ($(GOOS_GOARCH),windows_amd64)
 	TARGET=x86_64-windows GOARCH=amd64 GOOS=windows GOARCH=amd64 $(MAKE) package-arch
+else ifeq ($(GOOS_GOARCH),freebsd_amd64)
+	TARGET=x86_64-freebsd GOARCH=freebsd GOOS=amd64 $(MAKE) package-arch
 endif
 
 package-builder:
@@ -70,6 +72,7 @@ release:
 	GOOS=darwin GOARCH=arm64 $(MAKE) libzstd.a
 	GOOS=darwin GOARCH=amd64 $(MAKE) libzstd.a
 	GOOS=windows GOARCH=amd64 $(MAKE) libzstd.a
+	GOOS=freebsd GOARCH=amd64 $(MAKE) libzstd.a
 
 clean:
 	rm -f $(LIBZSTD_NAME)
