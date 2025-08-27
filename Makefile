@@ -61,7 +61,7 @@ package-arch: package-builder
 			make clean libzstd.a'
 	mv -f zstd/lib/libzstd.a $(LIBZSTD_NAME)
 
-# illumos aren't supported by zig compiler atm.
+# illumos isn't supported by zig compiler atm.
 release:
 	GOOS=linux GOARCH=amd64 $(MAKE) libzstd.a
 	GOOS=linux GOARCH=arm64 $(MAKE) libzstd.a
