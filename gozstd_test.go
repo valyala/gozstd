@@ -357,3 +357,15 @@ func TestCompressDecompressMultiFrames(t *testing.T) {
 			plainData, origData, len(plainData), len(origData))
 	}
 }
+
+func TestCompressDecompressLimited(t *testing.T) {
+	var bb bytes.Buffer
+	for bb.Len() < 3*128*1024 {
+		fmt.Fprintf(&bb, "compress/decompress big data %d, ", bb.Len())
+	}
+	cd := Compress(nil, bb.Bytes())
+	_, err := DecompressLimited(nil, cd, 1024)
+	if err == nil {
+		t.Fatalf("expecting non-nil error when decompressing with limited memory")
+	}
+}

@@ -185,10 +185,30 @@ func Decompress(dst, src []byte) ([]byte, error) {
 	return DecompressDict(dst, src, nil)
 }
 
+// DecompressLimited appends decompressed src to dst and returns the result.
+//
+// If dst has insufficient capacity for decompressed src, allocated memory is limited by maxAlloc.
+func DecompressLimited(dst, src []byte, maxAlloc int) ([]byte, error) {
+	return decompressDict(dst, src, nil, maxAlloc)
+}
+
 // DecompressDict appends decompressed src to dst and returns the result.
 //
 // The given dictionary dd is used for the decompression.
 func DecompressDict(dst, src []byte, dd *DDict) ([]byte, error) {
+	return decompressDict(dst, src, dd, 0)
+}
+
+// DecompressDictLimited appends decompressed src to dst and returns the result.
+//
+// The given dictionary dd is used for the decompression.
+//
+// If dst has insufficient capacity for decompressed src, allocated memory is limited by maxAlloc.
+func DecompressDictLimited(dst, src []byte, dd *DDict, maxAlloc int) ([]byte, error) {
+	return decompressDict(dst, src, dd, maxAlloc)
+}
+
+func decompressDict(dst, src []byte, dd *DDict, maxAlloc int) ([]byte, error) {
 	var dctx, dctxDict *dctxWrapper
 	if dd == nil {
 		dctx = dctxPool.Get().(*dctxWrapper)
@@ -197,7 +217,7 @@ func DecompressDict(dst, src []byte, dd *DDict) ([]byte, error) {
 	}
 
 	var err error
-	dst, err = decompress(dctx, dctxDict, dst, src, dd)
+	dst, err = decompress(dctx, dctxDict, dst, src, dd, maxAlloc)
 
 	if dd == nil {
 		dctxPool.Put(dctx)
@@ -233,7 +253,7 @@ type dctxWrapper struct {
 	dctx *C.ZSTD_DCtx
 }
 
-func decompress(dctx, dctxDict *dctxWrapper, dst, src []byte, dd *DDict) ([]byte, error) {
+func decompress(dctx, dctxDict *dctxWrapper, dst, src []byte, dd *DDict, maxAlloc int) ([]byte, error) {
 	if len(src) == 0 {
 		return dst, nil
 	}
@@ -264,6 +284,9 @@ func decompress(dctx, dctxDict *dctxWrapper, dst, src []byte, dd *DDict) ([]byte
 		return streamDecompress(dst, src, dd)
 	case uint64(C.ZSTD_CONTENTSIZE_ERROR):
 		return dst, fmt.Errorf("cannot decompress invalid src")
+	}
+	if maxAlloc > 0 && decompressBound > maxAlloc {
+		return dst, fmt.Errorf("decompressBound: %d exceeds maxAlloc: %d", decompressBound, maxAlloc)
 	}
 	decompressBound++
 
@@ -308,6 +331,9 @@ func decompressInternal(dctx, dctxDict *dctxWrapper, dst, src []byte, dd *DDict)
 	// Prevent from GC'ing of dst and src during CGO calls above.
 	runtime.KeepAlive(dst)
 	runtime.KeepAlive(src)
+	runtime.KeepAlive(dctx)
+	runtime.KeepAlive(dctxDict)
+	runtime.KeepAlive(dd)
 	return n
 }
 
