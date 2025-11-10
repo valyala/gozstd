@@ -16,7 +16,7 @@ package gozstd
 
 static size_t ZSTD_initDStream_usingDDict_wrapper(uintptr_t ds, uintptr_t dict) {
     ZSTD_DStream *zds = (ZSTD_DStream *)ds;
-    size_t rv = ZSTD_DCtx_reset(zds, ZSTD_reset_session_only);
+    size_t rv = ZSTD_DCtx_reset(zds, ZSTD_reset_session_and_parameters);
     if (rv != 0) {
         return rv;
     }
