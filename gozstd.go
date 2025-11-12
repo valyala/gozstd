@@ -189,7 +189,9 @@ func Decompress(dst, src []byte) ([]byte, error) {
 	return DecompressDict(dst, src, nil)
 }
 
-// DecompressLimited appends decompressed src to dst with given limit and returns the result.
+// DecompressLimited appends decompressed src to dst and returns the result.
+//
+// returns error if uncompressed data size exceeds provided limit
 func DecompressLimited(dst, src []byte, limit int) ([]byte, error) {
 	return decompressDict(dst, src, nil, limit)
 }
@@ -201,9 +203,11 @@ func DecompressDict(dst, src []byte, dd *DDict) ([]byte, error) {
 	return decompressDict(dst, src, dd, 0)
 }
 
-// DecompressDictLimited appends decompressed src to dst with given limit and returns the result.
+// DecompressDictLimited appends decompressed src to dst and returns the result.
 //
 // The given dictionary dd is used for the decompression.
+//
+// returns error if uncompressed data size exceeds provided limit
 func DecompressDictLimited(dst, src []byte, dd *DDict, limit int) ([]byte, error) {
 	return decompressDict(dst, src, dd, limit)
 }
