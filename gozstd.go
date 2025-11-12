@@ -264,6 +264,9 @@ func decompress(dctx, dctxDict *dctxWrapper, dst, src []byte, dd *DDict, limit i
 		result := decompressInternal(dctx, dctxDict, dst[dstLen:cap(dst)], src, dd)
 		decompressedSize := int(result)
 		if decompressedSize >= 0 {
+			if limit > 0 && decompressedSize > limit {
+				return dst, fmt.Errorf("decompressed source size: %d exceeds limit: %d", decompressedSize, limit)
+			}
 			// All OK.
 			return dst[:dstLen+decompressedSize], nil
 		}
@@ -398,6 +401,7 @@ func getStreamDecompressor(dd *DDict, limit int) *streamDecompressor {
 	if limit > 0 {
 		result := C.ZSTD_DCtx_setMaxWindowSize_wrapper(C.uintptr_t(uintptr(unsafe.Pointer(sd.zr.ds))), C.size_t(limit))
 		ensureNoError("ZSTD_DCtx_setMaxWindowSize", result)
+		sd.zr.limit = limit
 	}
 	return sd
 }

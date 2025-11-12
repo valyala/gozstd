@@ -358,22 +358,30 @@ func TestCompressDecompressMultiFrames(t *testing.T) {
 	}
 }
 
-func TestCompressDecompressLimitedOk(t *testing.T) {
+func TestCompressDecompressLimitedOK(t *testing.T) {
 
+	dst := make([]byte, 0, 512)
 	f := func(compressedData []byte, limit int) {
 		t.Helper()
-		_, err := DecompressLimited(nil, compressedData, limit)
+		var err error
+		dst, err = DecompressLimited(dst[:0], compressedData, limit)
 		if err != nil {
 			t.Fatalf("cannot decompress data with limit=%d: %s", limit, err)
 		}
 	}
+
 	var bb bytes.Buffer
 	for bb.Len() < 12*128*1024 {
 		fmt.Fprintf(&bb, "compress/decompress big data %d, ", bb.Len())
 	}
 	originData := bb.Bytes()
 	// block decompression
-	cd := Compress(nil, originData)
+	cd := Compress(nil, originData[:256])
+
+	// origin data fits dst buffer
+	f(cd, 300)
+
+	cd = Compress(nil, originData)
 
 	// decompressed size matches block limit
 	f(cd, len(originData))
@@ -397,22 +405,28 @@ func TestCompressDecompressLimitedOk(t *testing.T) {
 }
 
 func TestCompressDecompressLimitedFail(t *testing.T) {
+	dst := make([]byte, 0, 8)
 
 	f := func(compressedData []byte, limit int) {
 		t.Helper()
-		_, err := DecompressLimited(nil, compressedData, limit)
+		_, err := DecompressLimited(dst[:0], compressedData, limit)
 		if err == nil {
 			t.Fatalf("expecting non-nil error when decompressing data with limit: %d", limit)
 		}
 	}
 
 	var bb bytes.Buffer
-	for bb.Len() < 12*128*1024 {
-		fmt.Fprintf(&bb, "compress/decompress big data %d, ", bb.Len())
+	for bb.Len() < 32*1024*1024 {
+		fmt.Fprintf(&bb, "compress/decompress big raw data line %d, ", bb.Len())
 	}
 
-	// valid input bigger than limit
-	f(bb.Bytes(), 1024)
+	// valid input bigger than limit - fits allocated buffer
+	cd := Compress(nil, bb.Bytes()[:7])
+	f(cd, 5)
+
+	// valid input bigger than limit with new dst allocation
+	cd = Compress(nil, bb.Bytes()[:32])
+	f(cd, 16)
 
 	input, err := hex.DecodeString("28b52ffd8400005ed0b209000030ecaf4412")
 	if err != nil {
@@ -422,9 +436,17 @@ func TestCompressDecompressLimitedFail(t *testing.T) {
 	f(input, 512)
 
 	// input with stream windowSize bigger than limit
-	input, err = hex.DecodeString("28b52ffd04981900003030304e8da22b")
+	input, err = hex.DecodeString("28b52ffd00983d0100b401636f6d70726573732f646520626967206461746120302c2033322c0300437d0027f9268a17")
 	if err != nil {
 		t.Fatalf("BUG: unexpected hex input: %s", err)
 	}
-	f(input, 8*1e6*10)
+	f(input, 10*1e6)
+
+	// input with stream size bigger than limit
+	var compressBuf bytes.Buffer
+	if err := StreamCompress(&compressBuf, &bb); err != nil {
+		t.Fatalf("unexpected StreamCompress errror :%s", err)
+	}
+	f(compressBuf.Bytes(), 8*1e6)
+
 }

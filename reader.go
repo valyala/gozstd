@@ -56,6 +56,8 @@ type Reader struct {
 
 	inBufGo  cMemPtr
 	outBufGo cMemPtr
+
+	limit int
 }
 
 // NewReader returns new zstd reader reading compressed data from r.
@@ -104,6 +106,7 @@ func (zr *Reader) Reset(r io.Reader, dd *DDict) {
 	zr.inBuf.pos = 0
 	zr.outBuf.size = 0
 	zr.outBuf.pos = 0
+	zr.limit = 0
 
 	zr.dd = dd
 	initDStream(zr.ds, zr.dd)
@@ -168,6 +171,9 @@ func (zr *Reader) WriteTo(w io.Writer) (int64, error) {
 		n, err := w.Write(zr.outBufGo[zr.outBuf.pos:zr.outBuf.size])
 		zr.outBuf.pos += C.size_t(n)
 		nn += int64(n)
+		if zr.limit > 0 && nn > int64(zr.limit) {
+			return nn, fmt.Errorf("decompressed data size: %d exceeds limit: %d", nn, zr.limit)
+		}
 		if err != nil {
 			return nn, err
 		}
