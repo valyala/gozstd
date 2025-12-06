@@ -37,7 +37,6 @@ import "C"
 import (
 	"fmt"
 	"io"
-	"reflect"
 	"runtime"
 	"sync"
 	"unsafe"
@@ -163,15 +162,15 @@ func noescape(p unsafe.Pointer) unsafe.Pointer {
 
 func compressInternal(cctx, cctxDict *cctxWrapper, dst, src []byte, cd *CDict, compressionLevel int, mustSucceed bool) C.size_t {
 	// using noescape will allow this to work with stack-allocated slices
-	dstHdr := (*reflect.SliceHeader)(noescape(unsafe.Pointer(&dst)))
-	srcHdr := (*reflect.SliceHeader)(noescape(unsafe.Pointer(&src)))
+	dstPtr := noescape(unsafe.Pointer(unsafe.SliceData(dst)))
+	srcPtr := noescape(unsafe.Pointer(unsafe.SliceData(src)))
 
 	if cd != nil {
 		result := C.ZSTD_compress_usingCDict_wrapper(
 			unsafe.Pointer(cctxDict.cctx),
-			unsafe.Pointer(dstHdr.Data),
+			dstPtr,
 			C.size_t(cap(dst)),
-			unsafe.Pointer(srcHdr.Data),
+			srcPtr,
 			C.size_t(len(src)),
 			unsafe.Pointer(cd.p))
 		// Prevent from GC'ing of dst and src during CGO call above.
@@ -182,11 +181,12 @@ func compressInternal(cctx, cctxDict *cctxWrapper, dst, src []byte, cd *CDict, c
 		}
 		return result
 	}
+
 	result := C.ZSTD_compressCCtx_wrapper(
 		unsafe.Pointer(cctx.cctx),
-		unsafe.Pointer(dstHdr.Data),
+		dstPtr,
 		C.size_t(cap(dst)),
-		unsafe.Pointer(srcHdr.Data),
+		srcPtr,
 		C.size_t(len(src)),
 		C.int(compressionLevel))
 	// Prevent from GC'ing of dst and src during CGO call above.
@@ -274,8 +274,8 @@ func decompress(dctx, dctxDict *dctxWrapper, dst, src []byte, dd *DDict) ([]byte
 	}
 
 	// Slow path - resize dst to fit decompressed data.
-	srcHdr := (*reflect.SliceHeader)(noescape(unsafe.Pointer(&src)))
-	contentSize := C.ZSTD_findDecompressedSize_wrapper(unsafe.Pointer(srcHdr.Data), C.size_t(len(src)))
+	srcPtr := noescape(unsafe.Pointer(unsafe.SliceData(src)))
+	contentSize := C.ZSTD_findDecompressedSize_wrapper(srcPtr, C.size_t(len(src)))
 	switch {
 	case contentSize == C.ZSTD_CONTENTSIZE_UNKNOWN || contentSize > maxFrameContentSize:
 		return streamDecompress(dst, src, dd)
@@ -306,24 +306,24 @@ func decompress(dctx, dctxDict *dctxWrapper, dst, src []byte, dd *DDict) ([]byte
 
 func decompressInternal(dctx, dctxDict *dctxWrapper, dst, src []byte, dd *DDict) C.size_t {
 	var (
-		dstHdr = (*reflect.SliceHeader)(noescape(unsafe.Pointer(&dst)))
-		srcHdr = (*reflect.SliceHeader)(noescape(unsafe.Pointer(&src)))
+		dstPtr = noescape(unsafe.Pointer(unsafe.SliceData(dst)))
+		srcPtr = noescape(unsafe.Pointer(unsafe.SliceData(src)))
 		n      C.size_t
 	)
 	if dd != nil {
 		n = C.ZSTD_decompress_usingDDict_wrapper(
 			unsafe.Pointer(dctxDict.dctx),
-			unsafe.Pointer(dstHdr.Data),
+			dstPtr,
 			C.size_t(cap(dst)),
-			unsafe.Pointer(srcHdr.Data),
+			srcPtr,
 			C.size_t(len(src)),
 			unsafe.Pointer(dd.p))
 	} else {
 		n = C.ZSTD_decompressDCtx_wrapper(
 			unsafe.Pointer(dctx.dctx),
-			unsafe.Pointer(dstHdr.Data),
+			dstPtr,
 			C.size_t(cap(dst)),
-			unsafe.Pointer(srcHdr.Data),
+			srcPtr,
 			C.size_t(len(src)))
 	}
 	// Prevent from GC'ing of dst and src during CGO call above.

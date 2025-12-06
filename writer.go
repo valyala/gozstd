@@ -17,22 +17,6 @@ typedef struct {
 // The following *_wrapper functions allow avoiding memory allocations
 // durting calls from Go.
 // See https://github.com/golang/go/issues/24450 .
-static size_t ZSTD_CCtx_setParameter_wrapper(void *cs, ZSTD_cParameter param, int value) {
-    return ZSTD_CCtx_setParameter((ZSTD_CStream*)cs, param, value);
-}
-
-static size_t ZSTD_initCStream_wrapper(void *cs, int compressionLevel) {
-    return ZSTD_initCStream((ZSTD_CStream*)cs, compressionLevel);
-}
-
-static size_t ZSTD_CCtx_refCDict_wrapper(void *cc, void *dict) {
-    return ZSTD_CCtx_refCDict((ZSTD_CCtx*)cc, (ZSTD_CDict*)dict);
-}
-
-static size_t ZSTD_freeCStream_wrapper(void *cs) {
-    return ZSTD_freeCStream((ZSTD_CStream*)cs);
-}
-
 static size_t ZSTD_compressStream_wrapper(void *cs, void* dst, const void* src, ZSTD_EXT_BufferSizes* sizes, ZSTD_EndDirective endOp) {
 	return ZSTD_compressStream2_simpleArgs((ZSTD_CStream*)cs, dst, sizes->dstSize, &sizes->dstPos, src, sizes->srcSize, &sizes->srcPos, endOp);
 }
@@ -70,7 +54,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"reflect"
 	"runtime"
 	"unsafe"
 )
@@ -227,21 +210,14 @@ func (zw *Writer) ResetWriterParams(w io.Writer, params *WriterParams) {
 
 func initCStream(cs *C.ZSTD_CStream, params WriterParams) {
 	if params.Dict != nil {
-		result := C.ZSTD_CCtx_refCDict_wrapper(
-			unsafe.Pointer(cs),
-			unsafe.Pointer(params.Dict.p))
+		result := C.ZSTD_CCtx_refCDict(cs, params.Dict.p)
 		ensureNoError("ZSTD_CCtx_refCDict", result)
 	} else {
-		result := C.ZSTD_initCStream_wrapper(
-			unsafe.Pointer(cs),
-			C.int(params.CompressionLevel))
+		result := C.ZSTD_initCStream(cs, C.int(params.CompressionLevel))
 		ensureNoError("ZSTD_initCStream", result)
 	}
 
-	result := C.ZSTD_CCtx_setParameter_wrapper(
-		unsafe.Pointer(cs),
-		C.ZSTD_cParameter(C.ZSTD_c_windowLog),
-		C.int(params.WindowLog))
+	result := C.ZSTD_CCtx_setParameter(cs, C.ZSTD_c_windowLog, C.int(params.WindowLog))
 	ensureNoError("ZSTD_CCtx_setParameter", result)
 }
 
@@ -257,7 +233,7 @@ func (zw *Writer) Release() {
 		return
 	}
 
-	result := C.ZSTD_freeCStream_wrapper(unsafe.Pointer(zw.cs))
+	result := C.ZSTD_freeCStream(zw.cs)
 	ensureNoError("ZSTD_freeCStream", result)
 	zw.cs = nil
 
@@ -346,11 +322,11 @@ func (zw *Writer) flushInBuf() error {
 	zw.sizes.srcSize = C.size_t(len(zw.inBuf))
 	zw.sizes.srcPos = 0
 
-	outHdr := (*reflect.SliceHeader)(unsafe.Pointer(&zw.outBuf))
-	inHdr := (*reflect.SliceHeader)(unsafe.Pointer(&zw.inBuf))
+	dstBuf := unsafe.SliceData(zw.outBuf)
+	srcBuf := unsafe.SliceData(zw.inBuf)
 
 	result := C.ZSTD_compressStream_wrapper(
-		unsafe.Pointer(zw.cs), unsafe.Pointer(outHdr.Data), unsafe.Pointer(inHdr.Data),
+		unsafe.Pointer(zw.cs), unsafe.Pointer(dstBuf), unsafe.Pointer(srcBuf),
 		&zw.sizes, C.ZSTD_e_continue)
 	ensureNoError("ZSTD_compressStream_wrapper", result)
 
@@ -405,12 +381,12 @@ func (zw *Writer) Flush() error {
 
 	// Flush the internal buffer to outBuf.
 	for {
-		outHdr := (*reflect.SliceHeader)(unsafe.Pointer(&zw.outBuf))
+		dstBuf := unsafe.SliceData(zw.outBuf)
 		zw.sizes.dstSize = C.size_t(cap(zw.outBuf))
 		zw.sizes.dstPos = C.size_t(len(zw.outBuf))
 
 		result := C.ZSTD_flushStream_wrapper(
-			unsafe.Pointer(zw.cs), unsafe.Pointer(outHdr.Data), &zw.sizes)
+			unsafe.Pointer(zw.cs), unsafe.Pointer(dstBuf), &zw.sizes)
 		ensureNoError("ZSTD_flushStream", result)
 		zw.outBuf = zw.outBuf[:zw.sizes.dstPos]
 		if err := zw.flushOutBuf(); err != nil {
@@ -433,13 +409,13 @@ func (zw *Writer) Close() error {
 	}
 
 	for {
-		outHdr := (*reflect.SliceHeader)(unsafe.Pointer(&zw.outBuf))
+		dstBuf := unsafe.SliceData(zw.outBuf)
 		zw.sizes.dstSize = C.size_t(cap(zw.outBuf))
 		zw.sizes.dstPos = C.size_t(len(zw.outBuf))
 
 		result := C.ZSTD_endStream_wrapper(
 			unsafe.Pointer(zw.cs),
-			unsafe.Pointer(outHdr.Data), &zw.sizes)
+			unsafe.Pointer(dstBuf), &zw.sizes)
 		ensureNoError("ZSTD_endStream", result)
 		zw.outBuf = zw.outBuf[:zw.sizes.dstPos]
 		if err := zw.flushOutBuf(); err != nil {

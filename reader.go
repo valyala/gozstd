@@ -41,7 +41,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"reflect"
 	"runtime"
 	"unsafe"
 )
@@ -223,15 +222,15 @@ func (zr *Reader) fillOutBuf(target []byte) (int, error) {
 	zr.sizes.dstSize = C.size_t(cap(dst))
 	zr.sizes.dstPos = 0
 
-	inHdr := (*reflect.SliceHeader)(unsafe.Pointer(&zr.inBuf))
-	outHdr := (*reflect.SliceHeader)(unsafe.Pointer(&dst))
+	srcBuf := unsafe.SliceData(zr.inBuf)
+	dstBuf := unsafe.SliceData(dst)
 tryDecompressAgain:
 	zr.sizes.srcSize = C.size_t(len(zr.inBuf))
 	prevInBufPos := zr.sizes.srcPos
 
 	// Try decompressing inBuf into outBuf.
 	result := C.ZSTD_decompressStream_wrapper(
-		unsafe.Pointer(zr.ds), unsafe.Pointer(outHdr.Data), unsafe.Pointer(inHdr.Data), &zr.sizes)
+		unsafe.Pointer(zr.ds), unsafe.Pointer(dstBuf), unsafe.Pointer(srcBuf), &zr.sizes)
 
 	zr.skipNextRead = int(zr.sizes.dstPos) == cap(dst)
 	if target == nil {

@@ -2,7 +2,7 @@ package gozstd
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"testing"
 )
 
@@ -26,7 +26,7 @@ func benchmarkWriterDict(b *testing.B, blockSize, level int) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(block)))
 	b.RunParallel(func(pb *testing.PB) {
-		zw := NewWriterDict(ioutil.Discard, bd.cd)
+		zw := NewWriterDict(io.Discard, bd.cd)
 		defer zw.Release()
 		for pb.Next() {
 			for i := 0; i < benchBlocksPerStream; i++ {
@@ -38,7 +38,7 @@ func benchmarkWriterDict(b *testing.B, blockSize, level int) {
 			if err := zw.Close(); err != nil {
 				panic(fmt.Errorf("unexpected error: %s", err))
 			}
-			zw.Reset(ioutil.Discard, bd.cd, level)
+			zw.Reset(io.Discard, bd.cd, level)
 		}
 	})
 }
@@ -60,7 +60,7 @@ func benchmarkWriter(b *testing.B, blockSize, level int) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(block)))
 	b.RunParallel(func(pb *testing.PB) {
-		zw := NewWriterLevel(ioutil.Discard, level)
+		zw := NewWriterLevel(io.Discard, level)
 		defer zw.Release()
 		for pb.Next() {
 			for i := 0; i < benchBlocksPerStream; i++ {
@@ -72,7 +72,7 @@ func benchmarkWriter(b *testing.B, blockSize, level int) {
 			if err := zw.Close(); err != nil {
 				panic(fmt.Errorf("unexpected error: %s", err))
 			}
-			zw.Reset(ioutil.Discard, nil, level)
+			zw.Reset(io.Discard, nil, level)
 		}
 	})
 }
@@ -82,11 +82,11 @@ func BenchmarkWriterResetAlloc(b *testing.B) {
 
 	params := &WriterParams{}
 
-	zw := NewWriter(ioutil.Discard)
+	zw := NewWriter(io.Discard)
 	defer zw.Release()
 
 	for n := 0; n < b.N; n++ {
-		zw.Reset(ioutil.Discard, nil, 0)
-		zw.ResetWriterParams(ioutil.Discard, params)
+		zw.Reset(io.Discard, nil, 0)
+		zw.ResetWriterParams(io.Discard, params)
 	}
 }
