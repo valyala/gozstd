@@ -27,8 +27,8 @@ static size_t ZSTD_decompress_usingDDict_wrapper(void *ctx, void *dst, size_t ds
     return ZSTD_decompress_usingDDict((ZSTD_DCtx*)ctx, (void*)dst, dstCapacity, (const void*)src, srcSize, (const ZSTD_DDict*)ddict);
 }
 
-static unsigned long long ZSTD_getFrameContentSize_wrapper(void *src, size_t srcSize) {
-    return ZSTD_getFrameContentSize((const void*)src, srcSize);
+static unsigned long long ZSTD_findDecompressedSize_wrapper(void *src, size_t srcSize) {
+    return ZSTD_findDecompressedSize((const void*)src, srcSize);
 }
 
 */
@@ -153,6 +153,7 @@ func compress(cctx, cctxDict *cctxWrapper, dst, src []byte, cd *CDict, compressi
 // noescape is inlined and currently compiles down to zero instructions.
 // This is copied from go's strings.Builder. Allows us to use stack-allocated
 // slices.
+//
 //go:nosplit
 //go:nocheckptr
 func noescape(p unsafe.Pointer) unsafe.Pointer {
@@ -274,7 +275,7 @@ func decompress(dctx, dctxDict *dctxWrapper, dst, src []byte, dd *DDict) ([]byte
 
 	// Slow path - resize dst to fit decompressed data.
 	srcHdr := (*reflect.SliceHeader)(noescape(unsafe.Pointer(&src)))
-	contentSize := C.ZSTD_getFrameContentSize_wrapper(unsafe.Pointer(srcHdr.Data), C.size_t(len(src)))
+	contentSize := C.ZSTD_findDecompressedSize_wrapper(unsafe.Pointer(srcHdr.Data), C.size_t(len(src)))
 	switch {
 	case contentSize == C.ZSTD_CONTENTSIZE_UNKNOWN || contentSize > maxFrameContentSize:
 		return streamDecompress(dst, src, dd)
