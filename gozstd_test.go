@@ -401,7 +401,6 @@ func TestCompressDecompressLimitedOK(t *testing.T) {
 
 	// stream decompression unlimited
 	f(bbCompress.Bytes(), 0)
-
 }
 
 func TestCompressDecompressLimitedFail(t *testing.T) {
@@ -448,5 +447,27 @@ func TestCompressDecompressLimitedFail(t *testing.T) {
 		t.Fatalf("unexpected StreamCompress errror :%s", err)
 	}
 	f(compressBuf.Bytes(), 8*1e6)
+
+	// stream limit is lower than minimal window size:
+	// ZSTD_WINDOWLOG_ABSOLUTEMIN == 1 << 10
+	compressBuf.Reset()
+	bb.Reset()
+	fmt.Fprintf(&bb, "compress/decompress small data")
+	if err := StreamCompress(&compressBuf, &bb); err != nil {
+		t.Fatalf("unexpected StreamCompress errror :%s", err)
+	}
+	dst = nil
+	f(compressBuf.Bytes(), 512)
+
+	// limit is bigger than max64 window size
+	// ZSTD_WINDOWLOG_MAX 1 <<31
+	compressBuf.Reset()
+	bb.Reset()
+	fmt.Fprintf(&bb, "compress/decompress small data")
+	if err := StreamCompress(&compressBuf, &bb); err != nil {
+		t.Fatalf("unexpected StreamCompress errror :%s", err)
+	}
+	dst = nil
+	f(compressBuf.Bytes(), 1<<32)
 
 }
