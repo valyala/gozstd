@@ -496,3 +496,28 @@ func TestWriterBig(t *testing.T) {
 		t.Fatalf("unequal writtenBB and readBB\nwrittenBB=\n%X\nreadBB=\n%X", writtenBB.Bytes(), readBB.Bytes())
 	}
 }
+
+func TestCorruptData(t *testing.T) {
+	var bb bytes.Buffer
+	params := &WriterParams{
+		Checksum: true,
+	}
+	src := []byte(newTestString(512, 3))
+	zw := NewWriterParams(&bb, params)
+	if _, err := zw.Write(src); err != nil {
+		t.Fatalf("error while writing with Checksum param on: %s", err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("unexpected error when closing zw: %s", err)
+	}
+
+	cd := bb.Bytes()
+	const checksumFieldLen = 4
+	cd[len(cd)-checksumFieldLen-1] ^= 0xff // flip data bits
+
+	r := NewReader(bytes.NewReader(cd))
+	_, err := io.ReadAll(r)
+	if err == nil {
+		t.Fatalf("expected an error on corrupted data")
+	}
+}
