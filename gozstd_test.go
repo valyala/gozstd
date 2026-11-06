@@ -471,3 +471,14 @@ func TestCompressDecompressLimitedFail(t *testing.T) {
 	f(compressBuf.Bytes(), 1<<32)
 
 }
+
+func TestDecompressOversizedFrame(t *testing.T) {
+	// The frame advertises a decompressed size larger than int can represent.
+	data := []byte("(\xb5/\xfd\xd3000000000000\xd3C000")
+	if _, err := DecompressLimited(nil, data, 32*1024*1024); err == nil {
+		t.Fatal("expected decompressed size limit error")
+	}
+	if _, err := Decompress(nil, data); err == nil {
+		t.Fatal("expected oversized frame error")
+	}
+}
