@@ -43,6 +43,22 @@ func TestCDictCreateRelease(t *testing.T) {
 	}
 }
 
+func TestCDictByRefCreateRelease(t *testing.T) {
+	var samples [][]byte
+	for i := 0; i < 1000; i++ {
+		samples = append(samples, []byte(fmt.Sprintf("sample %d", i)))
+	}
+	dict := BuildDict(samples, 64*1024)
+
+	for i := 0; i < 10; i++ {
+		cd, err := NewCDictByRef(dict)
+		if err != nil {
+			t.Fatalf("cannot create dict: %s", err)
+		}
+		cd.Release()
+	}
+}
+
 func TestDDictCreateRelease(t *testing.T) {
 	var samples [][]byte
 	for i := 0; i < 1000; i++ {
@@ -52,6 +68,22 @@ func TestDDictCreateRelease(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		dd, err := NewDDict(dict)
+		if err != nil {
+			t.Fatalf("cannot create dict: %s", err)
+		}
+		dd.Release()
+	}
+}
+
+func TestDDictByRefCreateRelease(t *testing.T) {
+	var samples [][]byte
+	for i := 0; i < 1000; i++ {
+		samples = append(samples, []byte(fmt.Sprintf("sample %d", i)))
+	}
+	dict := BuildDict(samples, 64*1024)
+
+	for i := 0; i < 10; i++ {
+		dd, err := NewDDictByRef(dict)
 		if err != nil {
 			t.Fatalf("cannot create dict: %s", err)
 		}
